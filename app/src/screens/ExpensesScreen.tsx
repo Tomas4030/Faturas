@@ -1,20 +1,17 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { useFocusEffect } from '@react-navigation/native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { formatCents, listReceipts, ReceiptDto, uploadReceipt } from '../api';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { categoryLabel, formatCents, listReceipts, ReceiptDto } from '../api';
+import { useScanReceipt } from '../hooks/useScanReceipt';
 import type { RootStackParamList } from '../navigation';
-
-type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 const STATUS_LABEL: Record<ReceiptDto['status'], string> = {
   processing: 'A processar…',
@@ -23,18 +20,18 @@ const STATUS_LABEL: Record<ReceiptDto['status'], string> = {
   failed: 'Falhou',
 };
 
-export function HomeScreen({ navigation }: Props) {
+export function ExpensesScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [receipts, setReceipts] = useState<ReceiptDto[]>([]);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const { scan, uploading } = useScanReceipt();
 
   const refresh = useCallback(() => {
     setLoading(true);
     listReceipts()
       .then(setReceipts)
-      .catch(() => {
-        // API offline: mantém lista anterior
-      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -43,32 +40,6 @@ export function HomeScreen({ navigation }: Props) {
       refresh();
     }, [refresh]),
   );
-
-  const scan = useCallback(async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    let result: ImagePicker.ImagePickerResult;
-    if (permission.granted) {
-      result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-    } else {
-      result = await ImagePicker.launchImageLibraryAsync({
-        quality: 0.7,
-        mediaTypes: 'images',
-      });
-    }
-    if (result.canceled || !result.assets[0]) return;
-    setUploading(true);
-    try {
-      const { receipt_id } = await uploadReceipt(result.assets[0].uri);
-      navigation.navigate('Processing', { receiptId: receipt_id });
-    } catch (error) {
-      Alert.alert(
-        'Erro no envio',
-        'Não foi possível enviar a fatura. Confirma que a API está a correr e que estás na mesma rede Wi-Fi.',
-      );
-    } finally {
-      setUploading(false);
-    }
-  }, [navigation]);
 
   const openReceipt = useCallback(
     (item: ReceiptDto) => {
@@ -95,6 +66,8 @@ export function HomeScreen({ navigation }: Props) {
         <View style={styles.cardRow}>
           <Text style={styles.cardSubtitle}>
             {item.document.date ?? item.created_at.slice(0, 10)}
+            {'  ·  '}
+            {categoryLabel(item.category)}
           </Text>
           <Text
             style={[
@@ -164,7 +137,7 @@ const styles = StyleSheet.create({
   statusReview: { color: '#f29900' },
   scanButton: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 16,
     left: 16,
     right: 16,
     backgroundColor: '#1a73e8',

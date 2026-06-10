@@ -12,7 +12,16 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { formatCents, getReceipt, ReceiptDto, updateItems } from '../api';
+import {
+  categoryLabel,
+  formatCents,
+  getReceipt,
+  MACRO_CATEGORIES,
+  MacroCategory,
+  ReceiptDto,
+  updateItems,
+  updateReceipt,
+} from '../api';
 import type { RootStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Review'>;
@@ -150,6 +159,42 @@ export function ReviewScreen({ navigation, route }: Props) {
           {receipt.document.date ?? receipt.created_at.slice(0, 10)}
         </Text>
 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoryChips}
+        >
+          {MACRO_CATEGORIES.map((c) => {
+            const active = receipt.category === c;
+            return (
+              <Pressable
+                key={c}
+                style={[styles.chip, active ? styles.chipActive : null]}
+                onPress={() => {
+                  if (active) return;
+                  updateReceipt(receipt.id, { category: c as MacroCategory })
+                    .then(setReceipt)
+                    .catch(() =>
+                      Alert.alert(
+                        'Erro',
+                        'Não foi possível alterar a categoria.',
+                      ),
+                    );
+                }}
+              >
+                <Text
+                  style={[
+                    styles.chipLabel,
+                    active ? styles.chipLabelActive : null,
+                  ]}
+                >
+                  {categoryLabel(c)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
         {receipt.warnings.length > 0 ? (
           <View style={styles.warningBox}>
             {receipt.warnings.map((w, i) => (
@@ -261,6 +306,17 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 120 },
   merchant: { fontSize: 22, fontWeight: '700' },
   date: { color: '#888', marginTop: 2, marginBottom: 12 },
+  categoryChips: { flexGrow: 0, marginBottom: 12 },
+  chip: {
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#e8eaed',
+    marginRight: 6,
+  },
+  chipActive: { backgroundColor: '#1a73e8' },
+  chipLabel: { fontSize: 13, color: '#444' },
+  chipLabelActive: { color: '#fff', fontWeight: '600' },
   warningBox: {
     backgroundColor: '#fef7e0',
     borderRadius: 10,
