@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReceiptStatus {
+  processing
+  needs_review
+  ready
+  failed
+}
+
+model Receipt {
+  id              String        @id @default(cuid())
+  merchantName    String?       @map("merchant_name")
+  merchantNif     String?       @map("merchant_nif")
+  documentNumber  String?       @map("document_number")
+  documentDate    DateTime?     @map("document_date") @db.Date
+  currency        String        @default("EUR")
+  subtotalCents   Int?          @map("subtotal_cents")
+  taxCents        Int?          @map("tax_cents")
+  discountCents   Int?          @map("discount_cents")
+  tipCents        Int?          @map("tip_cents")
+  totalCents      Int?          @map("total_cents")
+  status          ReceiptStatus @default(processing)
+  imageStorageKey String        @map("image_storage_key")
+  mimeType        String        @map("mime_type")
+  fileSize        Int           @map("file_size")
+  rawOcrJson      Json?         @map("raw_ocr_json")
+  warnings        Json?
+  failureReason   String?       @map("failure_reason")
+  items           ReceiptItem[]
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@map("receipts")
+}
+
+model ReceiptItem {
+  id             String   @id @default(cuid())
+  receiptId      String   @map("receipt_id")
+  receipt        Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  description    String
+  quantity       Decimal  @db.Decimal(10, 3)
+  unitPriceCents Int      @map("unit_price_cents")
+  totalCents     Int      @map("total_cents")
+  category       String?
+  confidence     Float?
+  position       Int
+  suspect        Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("receipt_items")
+}
