@@ -1,11 +1,11 @@
-# Faturas — Fase 0 (Protótipo)
+# Faturas — Gestão de Despesas
 
-App mobile que fotografa uma fatura, extrai os itens com IA e permite revisão manual antes de confirmar. Base da futura app de divisão de contas e gestão de gastos (ver `spec.txt` e `docs/`).
+App mobile que fotografa uma fatura, extrai os itens com IA, permite revisão manual e organiza tudo: fornecedores automáticos, dashboard com estatísticas e insights, relatórios com IVA e export CSV (ver `spec.txt` e `docs/`).
 
 ## Estrutura
 
-- `api/` — NestJS + Prisma + PostgreSQL. Upload de imagem, extração assíncrona, validação matemática (dinheiro em cêntimos).
-- `app/` — Expo + React Native. Ecrãs: Home → Processamento → Revisão.
+- `api/` — NestJS + Prisma + PostgreSQL. Upload de imagem, extração assíncrona, validação matemática (dinheiro em cêntimos), fornecedores com deduplicação, memória de correções de categoria, estatísticas e relatórios.
+- `app/` — Expo + React Native (SDK 54). Tabs: Início (dashboard) · Despesas · Entidades; ecrãs de processamento, revisão, fornecedor e relatório.
 - `docker-compose.yml` — PostgreSQL 16.
 
 ## Arrancar
@@ -57,9 +57,13 @@ npm run test:e2e  # integração (upload → extração → revisão)
 ## Endpoints
 
 - `POST /receipts` — multipart `image` → `{ receipt_id, status: "processing" }`
-- `GET /receipts/:id` — estado + itens + totais + warnings
+- `GET /receipts/:id` — estado + itens + totais + IVA + warnings
 - `GET /receipts` — lista
 - `PATCH /receipts/:id/items` — itens revistos pelo utilizador → status `ready`
+- `PATCH /receipts/:id` — corrigir categoria/comerciante (a correção fica memorizada)
+- `GET /suppliers` · `GET /suppliers/:id` — fornecedores com agregados
+- `GET /stats/summary?month=YYYY-MM` — dashboard (totais, categorias, dias, top fornecedores, insights)
+- `GET /reports/expenses?month=&category=&supplier_id=` — relatório IVA (`.csv` para exportar)
 
 ## Regras críticas (da especificação)
 
