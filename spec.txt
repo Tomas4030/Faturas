@@ -1,0 +1,1161 @@
+Especificação Técnica — App Mobile de
+Digitalização de Faturas, Divisão de Contas e
+Gestão de Gastos
+1. Resumo da ideia
+A aplicação permite ao utilizador tirar uma fotografia a uma fatura/recibo, extrair automaticamente os
+dados principais e transformar essa fatura numa experiência interativa.
+Casos principais:
+1. Restaurante com amigos
+2. O criador tira foto da fatura.
+3. A app extrai restaurante, data, itens, quantidades, preços, IVA, total.
+4. O criador partilha um link com os amigos.
+5. Cada amigo abre o link e seleciona os itens que consumiu.
+6. A app calcula automaticamente quanto cada pessoa deve pagar.
+7. Numa fase futura, a app pode facilitar pagamento via MB WAY ou gateway de pagamento.
+8. Gestão pessoal de despesas
+9. O utilizador digitaliza qualquer fatura.
+10. A app categoriza automaticamente: restaurantes, supermercado, combustível, fornecedores,
+lazer, etc.
+11. A homepage mostra estatísticas por mês, fornecedor, categoria, valor gasto, evolução e gráficos.
+12. Gestão para pequenos negócios/restaurantes
+13. O dono digitaliza faturas de fornecedores.
+14. A app mostra quanto está a gastar em cada fornecedor.
+15. Ajuda a perceber onde o dinheiro está a ir.
+16. Pode comparar meses, fornecedores e categorias.
+1
+
+---PAGE---
+
+2. O que construir primeiro
+MVP recomendado
+O erro mais comum seria tentar construir tudo ao mesmo tempo: IA, estatísticas, pagamentos,
+subscrições, dashboard avançado, MB WAY, fornecedores, relatórios e gestão de equipas.
+Não faças isso.
+O MVP deve ser:
+Foto da fatura
+→ Extração dos itens
+→ Ecrã para corrigir itens
+→ Criar sessão de divisão
+→ Partilhar link
+→ Amigos escolhem itens
+→ Cálculo final por pessoa
+Isto já resolve uma dor real.
+Só depois de isto funcionar bem é que deves avançar para:
+Histórico de despesas
+→ Categorias
+→ Estatísticas
+→ Planos pagos
+→ MB WAY
+→ B2B/restaurantes
+3. Diferenciação do produto
+Já existem apps de split bills e expense tracking. A diferença aqui deve ser:
+Posicionamento principal
+“A app que transforma uma fatura numa checklist partilhável, calcula a parte de cada
+pessoa e ainda organiza os teus gastos automaticamente.”
+Não vendas como “mais uma app de despesas”.
+Vende como:
+• “Tira foto à fatura.”
+2
+
+---PAGE---
+
+• “Partilha o link.”
+• “Cada pessoa escolhe o que consumiu.”
+• “A app faz as contas.”
+• “Ficas com histórico e estatísticas.”
+4. Stack recomendada
+Mobile app
+Recomendação: React Native com Expo.
+Motivos:
+• Rápido para MVP.
+• Funciona em iOS e Android.
+• Bom suporte para câmara, upload de imagens, deep links e partilha.
+• Permite lançar rápido.
+• Mais simples para equipas pequenas do que manter duas apps nativas.
+Alternativa: Flutter.
+Flutter também é excelente, mas se a equipa já souber JavaScript/TypeScript, React Native + Expo é
+mais prático.
+Backend
+Recomendação: Node.js com NestJS ou FastAPI com Python.
+Para este projeto, eu escolheria:
+Backend principal: NestJS + TypeScript
+IA/OCR workers: Python
+Base de dados: PostgreSQL
+Storage de imagens: S3-compatible storage
+Fila de jobs: Redis + BullMQ ou Celery
+Pagamentos/subscrições: Stripe inicialmente
+Pagamentos PT/MB WAY: SIBS numa fase posterior
+Base de dados
+Recomendação: PostgreSQL.
+Motivos:
+• Excelente para dados relacionais.
+• Bom para faturas, itens, utilizadores, sessões, pagamentos, planos.
+3
+
+---PAGE---
+
+• Suporta JSONB para guardar resposta bruta da IA.
+• Permite analytics básicos antes de precisares de data warehouse.
+Storage
+Não guardes imagens diretamente na base de dados.
+Usa:
+S3 / Cloudflare R2 / Google Cloud Storage / Azure Blob
+Na base de dados guardas apenas:
+image_url
+storage_key
+mime_type
+file_size
+uploaded_at
+Fila de processamento
+A extração da fatura não deve acontecer toda no request HTTP.
+Fluxo correto:
+User faz upload
+→ API cria receipt com status = "processing"
+→ Worker processa OCR/IA
+→ Worker atualiza receipt para "needs_review" ou "ready"
+→ App recebe update
+Isto evita timeouts e melhora a experiência.
+5. Arquitetura geral
+Mobile App
+|
+| Upload foto
+v
+Backend API
+|
+| Guarda imagem
+v
+Object Storage
+4
+
+---PAGE---
+
+|
+| Cria job
+v
+Queue
+|
+v
+OCR / Vision Worker
+|
+| Extrai texto e itens
+v
+LLM Normalizer
+|
+| JSON validado
+v
+PostgreSQL
+|
+v
+Mobile App mostra fatura editável
+6. Como fazer a extração da fatura
+Não confies só numa IA genérica
+Este é um ponto crítico.
+Faturas são difíceis porque podem ter:
+• má iluminação;
+• papel dobrado;
+• itens cortados;
+• abreviações;
+• IVA misturado;
+• descontos;
+• gorjeta;
+• vários IVA;
+• quantidades;
+• linhas partidas;
+• totais pouco claros;
+• recibos de supermercados com muitos produtos;
+• faturas de restaurantes com artigos iguais repetidos;
+• QR Code fiscal;
+• NIF;
+• ATCUD;
+• dados pessoais.
+A melhor abordagem é híbrida.
+5
+
+---PAGE---
+
+Pipeline recomendado
+Passo 1 — Pré-processamento da imagem
+Antes da IA:
+• corrigir rotação;
+• cortar margens;
+• melhorar contraste;
+• reduzir sombras;
+• detetar se a imagem está desfocada;
+• pedir nova foto se a qualidade for má.
+Exemplo de erro a evitar:
+Não envies uma foto toda torta e escura diretamente para o modelo e esperes
+100% de precisão.
+A app deve dizer:
+"Foto pouco nítida. Aproxima mais a câmara e tenta novamente."
+Passo 2 — OCR/document parser
+Tens 4 caminhos possíveis:
+Opção A — Google Document AI
+Bom para invoices/receipts e tem parsers próprios.
+Vantagens:
+• robusto;
+• pensado para documentos;
+• bom para campos estruturados;
+• escalável.
+Desvantagens:
+• custo por página;
+• pode precisar de tuning;
+• integração cloud.
+Opção B — Amazon Textract AnalyzeExpense
+Bom para recibos e faturas.
+6
+
+---PAGE---
+
+Vantagens:
+• retorna campos de despesa;
+• extrai vendor, total, line items;
+• bom ecossistema AWS.
+Desvantagens:
+• pode falhar com layouts muito locais;
+• precisas de testar com faturas portuguesas.
+Opção C — Azure Document Intelligence
+Bom se o projeto estiver no ecossistema Microsoft.
+Vantagens:
+• modelos prebuilt para receipt/invoice;
+• bom OCR;
+• boa documentação.
+Desvantagens:
+• pode ser overkill se não usares Azure.
+Opção D — OpenAI Vision / modelos multimodais
+Bom para interpretar imagens difíceis e devolver JSON estruturado.
+Vantagens:
+• excelente para raciocinar sobre layout;
+• bom para transformar texto confuso em estrutura;
+• útil para validação e normalização;
+• permite pedir exatamente o formato desejado.
+Desvantagens:
+• deves validar tudo;
+• pode alucinar se a imagem estiver má;
+• não deve ser a única fonte de verdade para dinheiro.
+Recomendação final para MVP
+Para o MVP:
+OpenAI Vision + schema JSON rigoroso + validações matemáticas
+Para produção mais robusta:
+7
+
+---PAGE---
+
+OCR especializado/document parser
++ OpenAI para normalização, correção e categorização
++ validação matemática própria
+7. JSON esperado da extração
+A IA deve devolver sempre um JSON neste formato:
+{
+"merchant": {
+"name": "Restaurante Sakura",
+"nif": "123456789",
+"address": "Rua Exemplo 12, Faro"
+},
+"document": {
+"type": "receipt",
+"date": "2026-06-10",
+"number": "FT 2026/123",
+"atcud": "ABCD123-456",
+"currency": "EUR"
+},
+"items": [
+{
+"description": "Menu Sushi",
+"quantity": 2,
+"unit_price": 18.5,
+"total": 37,
+"category": "restaurant_food",
+"confidence": 0.94
+},
+{
+"description": "Coca-Cola",
+"quantity": 2,
+"unit_price": 2.5,
+"total": 5,
+"category": "drinks",
+"confidence": 0.91
+}
+],
+"taxes": [
+{
+"rate": 13,
+"base": 37,
+"amount": 4.81
+},
+{
+"rate": 23,
+8
+
+---PAGE---
+
+"base": 5,
+"amount": 1.15
+}
+],
+"totals": {
+"subtotal": 42,
+"tax": 5.96,
+"discount": 0,
+"tip": 0,
+"grand_total": 47.96
+},
+"warnings": [
+"Total calculado não bate exatamente com o total da fatura."
+]
+}
+8. Regra crítica: validação matemática
+Nunca confies cegamente no JSON da IA.
+Tens de validar:
+quantity × unit_price = line_total
+sum(line_total) + tax - discounts + tip = grand_total
+Com tolerância, por exemplo:
+0.01€ a 0.05€
+Porque podem existir arredondamentos.
+Exemplo onde não podes errar
+Fatura:
+2 x Menu Sushi 18,50 = 37,00
+2 x Coca-Cola 2,50 = 5,00
+Total = 42,00
+Se a IA devolver:
+{
+"description": "Menu Sushi",
+9
+
+---PAGE---
+
+"quantity": 2,
+"unit_price": 18.5,
+"total": 18.5
+}
+Está errado.
+A app deve marcar essa linha como suspeita:
+"Quantidade e total não coincidem. Confirma esta linha."
+9. Ecrã obrigatório: revisão manual
+Nunca lances uma app destas sem ecrã de revisão.
+Depois da extração, mostra:
+Restaurante Sakura
+10 Jun 2026
+[ ] Menu Sushi x2 18,50€ 37,00€
+[ ] Coca-Cola x2 2,50€ 5,00€
+[ ] Sobremesa x1 4,00€ 4,00€
+Total detetado: 46,00€
+Total fatura: 46,00€
+Permite:
+• editar nome do item;
+• editar quantidade;
+• editar preço;
+• juntar linhas;
+• dividir quantidade;
+• apagar item;
+• adicionar item manualmente;
+• marcar gorjeta;
+• marcar desconto;
+• alterar categoria.
+Erro comum
+O júnior pode pensar:
+10
+
+---PAGE---
+
+"Se a IA extraiu, está pronto."
+Errado.
+A app deve assumir:
+"A IA ajuda, mas o utilizador confirma."
+10. Modelo de divisão de conta
+Entidades principais
+Receipt
+ReceiptItem
+SplitSession
+Participant
+ParticipantItemClaim
+PaymentRequest
+Fluxo
+Criador digitaliza fatura
+→ App cria Receipt
+→ Criador revê itens
+→ Criador cria SplitSession
+→ App gera link
+→ Amigos entram no link
+→ Cada um escolhe itens
+→ App calcula totais
+→ Criador fecha sessão
+→ Todos veem quanto devem pagar
+Tipos de divisão
+Deves suportar pelo menos 4 tipos:
+1. Item inteiro para uma pessoa
+João comeu Sobremesa 4,00€
+11
+
+---PAGE---
+
+2. Item dividido por várias pessoas
+1 garrafa vinho 18,00€
+João + Maria + Tomás dividem
+Cada um paga 6,00€
+3. Quantidade parcial
+6 pães de queijo = 12,00€
+Pessoa A comeu 2
+Pessoa B comeu 4
+4. Divisão proporcional de taxas/serviço
+Se houver IVA, taxa de serviço ou gorjeta:
+Cada pessoa paga proporcionalmente ao subtotal dos itens que selecionou.
+Exemplo:
+Pessoa A consumiu 30€
+Pessoa B consumiu 70€
+Taxa de serviço = 10€
+Pessoa A paga 3€
+Pessoa B paga 7€
+11. Regra de cálculo recomendada
+Fórmula
+participant_subtotal = soma dos itens atribuídos ao participante
+participant_ratio = participant_subtotal / total_items_subtotal
+participant_tax = total_tax * participant_ratio
+participant_tip = total_tip * participant_ratio
+participant_discount = total_discount * participant_ratio
+participant_total =
+participant_subtotal
+12
+
+---PAGE---
+
++ participant_tax
++ participant_tip
+- participant_discount
+Cuidado com arredondamentos
+O total de todos os participantes tem de bater com o total da fatura.
+Problema:
+Total = 10,00€
+3 pessoas
+10 / 3 = 3,333333
+Não podes cobrar:
+3,33 + 3,33 + 3,33 = 9,99€
+Tens de distribuir o cêntimo restante:
+3,34 + 3,33 + 3,33 = 10,00€
+Cria uma função central para isto.
+Nunca espalhes lógica de dinheiro por vários ficheiros.
+12. Dinheiro: usa inteiros, nunca floats
+Erro grave:
+0.1 + 0.2
+Em JavaScript isso pode dar problemas de precisão.
+Guarda dinheiro em cêntimos:
+10,50€ = 1050
+Na base de dados:
+13
+
+---PAGE---
+
+amount_cents INTEGER
+currency TEXT
+Exemplo:
+{
+"amount_cents": 1050,
+"currency": "EUR"
+}
+Nunca guardes valores monetários como float .
+13. Pagamentos MB WAY
+Fase 1 — Não integrar pagamentos
+No MVP, faz apenas:
+"O João deve pagar 23,40€ ao Tomás."
+E mostra:
+Número MB WAY do Tomás: 9XX XXX XXX
+Ou botão:
+Copiar valor
+Copiar número
+Fase 2 — Deep link ou instrução de pagamento
+Podes tentar abrir uma experiência que ajude o utilizador a pagar, mas não assumes que o pagamento
+aconteceu sem confirmação real.
+Fase 3 — Integração SIBS/MB WAY
+Aqui já entras em pagamentos reais.
+Pontos importantes:
+• MB WAY precisa de aceitação do utilizador.
+• A SIBS permite pagamentos MB WAY através de gateway.
+14
+
+---PAGE---
+
+• Precisas de conta de merchant/contrato.
+• Tens de lidar com estados: pending, accepted, rejected, expired.
+• Tens de lidar com webhooks/callbacks.
+• Tens de guardar logs de pagamento.
+Atenção regulatória
+Não construas um sistema onde a tua app “segura” dinheiro de amigos e depois distribui sem
+perceberes as implicações legais.
+Há diferença entre:
+A app calcula quanto cada pessoa deve pagar.
+e
+A app recebe dinheiro de várias pessoas e distribui para outra pessoa.
+A segunda pode trazer obrigações regulatórias, KYC, AML, PSP/licenciamento ou dependência forte de
+um parceiro de pagamentos.
+Para começar, mantém-te no modelo:
+A app calcula e facilita.
+O pagamento acontece fora da app ou via PSP licenciado.
+14. Subscrições e modelo pago
+Objetivo
+A aplicação deve ter plano gratuito/trial para gerar hábito, mas limitar o uso para converter para pago.
+Planos sugeridos
+Free / Trial
+Preço: 0€
+Duração: 7 ou 14 dias
+Limite: 5 faturas no total ou 3 faturas/semana
+Features:
+- digitalização básica
+- divisão de conta
+15
+
+---PAGE---
+
+- histórico limitado
+- estatísticas simples
+Basic
+Preço: 3,99€ / mês
+Limite: 30 faturas/mês
+Features:
+- digitalização
+- histórico completo
+- categorias automáticas
+- estatísticas mensais
+- export CSV básico
+Plus
+Preço: 7,99€ / mês
+Limite: 150 faturas/mês
+Features:
+- tudo do Basic
+- sessões ilimitadas de split
+- estatísticas avançadas
+- fornecedores frequentes
+- gráficos por categoria
+- export PDF/Excel
+Pro / Business
+Preço: 14,99€ a 29,99€ / mês
+Limite: 500+ faturas/mês
+Features:
+- multi-utilizador
+- fornecedores
+- etiquetas personalizadas
+- relatórios mensais
+- export contabilista
+- permissões
+Regra importante
+Não limites só por “features bonitas”.
+Limita por custo real:
+número de faturas processadas
+armazenamento de imagens
+16
+
+---PAGE---
+
+histórico
+exportações
+estatísticas avançadas
+número de participantes
+número de equipas
+A extração por IA custa dinheiro. O pricing tem de refletir isso.
+15. Sistema de limites
+Cria uma tabela usage_counters .
+Exemplo:
+user_id
+period_start
+period_end
+receipts_scanned
+split_sessions_created
+exports_generated
+storage_used_mb
+Antes de processar uma fatura:
+1. Verificar plano ativo
+2. Verificar limite mensal/semanal
+3. Se ultrapassou:
+- bloquear
+- mostrar upgrade
+4. Se pode:
+- incrementar contador
+- processar
+Não faças isto só no frontend
+Erro grave:
+Esconder botão no frontend e achar que o limite está protegido.
+O limite tem de ser aplicado no backend.
+17
+
+---PAGE---
+
+16. Base de dados sugerida
+users
+id
+email
+phone
+name
+created_at
+updated_at
+subscriptions
+id
+user_id
+provider
+provider_customer_id
+provider_subscription_id
+plan
+status
+current_period_start
+current_period_end
+trial_ends_at
+created_at
+updated_at
+receipts
+id
+user_id
+merchant_name
+merchant_nif
+document_number
+document_date
+currency
+subtotal_cents
+tax_cents
+discount_cents
+tip_cents
+total_cents
+status
+image_storage_key
+raw_ocr_json
+created_at
+updated_at
+18
+
+---PAGE---
+
+receipt_items
+id
+receipt_id
+description
+quantity
+unit_price_cents
+total_cents
+category
+confidence
+position
+created_at
+updated_at
+split_sessions
+id
+receipt_id
+created_by_user_id
+public_token
+status
+expires_at
+created_at
+updated_at
+participants
+id
+split_session_id
+user_id nullable
+display_name
+phone nullable
+created_at
+participant_item_claims
+id
+participant_id
+receipt_item_id
+quantity_claimed
+share_percentage
+amount_cents
+created_at
+19
+
+---PAGE---
+
+payment_requests
+id
+split_session_id
+payer_participant_id
+payee_user_id
+amount_cents
+currency
+status
+provider
+provider_payment_id
+created_at
+updated_at
+expense_categories
+id
+user_id nullable
+name
+type
+created_at
+17. API endpoints sugeridos
+Upload de fatura
+POST /receipts
+Content-Type: multipart/form-data
+Resposta:
+{
+"receipt_id": "rec_123",
+"status": "processing"
+}
+Estado da extração
+GET /receipts/:id
+Resposta:
+20
+
+---PAGE---
+
+{
+"id": "rec_123",
+"status": "needs_review",
+"items": []
+}
+Atualizar itens revistos
+PATCH /receipts/:id/items
+Criar sessão de split
+POST /receipts/:id/split-sessions
+Resposta:
+{
+"split_session_id": "spl_123",
+"share_url": "https://app.com/s/spl_public_token"
+}
+Entrar numa sessão
+GET /split-sessions/:token
+Selecionar itens
+POST /split-sessions/:token/claims
+Ver resumo
+GET /split-sessions/:token/summary
+18. UX mobile-first
+Homepage
+A homepage deve mostrar rapidamente:
+21
+
+---PAGE---
+
+Este mês
+- Total gasto: 482,30€
+- Nº faturas: 34
+- Maior categoria: Supermercado
+- Maior fornecedor: Continente
+Botão principal:
+[Digitalizar fatura]
+Cards principais
+[Restaurantes] 143,20€
+[Supermercado] 221,45€
+[Combustível] 68,00€
+[Outros] 49,65€
+Gráficos
+Começa simples:
+• gráfico circular por categoria;
+• gráfico de barras por mês;
+• lista de fornecedores;
+• evolução mensal.
+Não cries dashboard complexo no MVP.
+19. Categorias automáticas
+A IA pode sugerir categorias, mas o utilizador deve poder corrigir.
+Exemplo:
+Fornecedor: Continente
+Categoria sugerida: Supermercado
+Confiança: 98%
+Exemplo:
+Fornecedor: Makro
+Categoria sugerida: Fornecedor restaurante
+Confiança: 88%
+22
+
+---PAGE---
+
+Deves guardar correções do utilizador.
+Se o utilizador corrigir:
+"Makro" → "Fornecedor Restaurante"
+Na próxima vez, aplica automaticamente.
+20. Estatísticas úteis
+Para utilizador normal
+Gastos por categoria
+Gastos por mês
+Top estabelecimentos
+Média por refeição
+Total em restaurantes
+Total em supermercado
+Comparação mês atual vs mês anterior
+Para restaurantes/negócios
+Gasto por fornecedor
+Gasto por categoria de produto
+Evolução mensal
+Top 10 fornecedores
+Desvios anormais
+Exportação para contabilista
+Exemplo de insight:
+"Este mês gastaste 32% mais em fornecedor X do que no mês passado."
+21. Segurança
+Autenticação
+Usa:
+23
+
+---PAGE---
+
+Email magic link
+Google/Apple login
+OTP por telefone numa fase posterior
+Para MVP, email magic link chega.
+Links públicos de sessão
+O link de split deve usar token aleatório forte.
+Errado:
+/split/123
+Certo:
+/split/ses_9sd8f7s9df8s7df98sd7f
+Expiração
+Sessões públicas devem expirar.
+Exemplo:
+Sessões de restaurante expiram após 7 dias.
+Permissões
+Só o criador deve poder:
+• editar fatura;
+• fechar sessão;
+• apagar sessão;
+• gerar pedido de pagamento.
+Participantes só podem:
+• escolher itens;
+• ver o seu total;
+• ver resumo se permitido.
+24
+
+---PAGE---
+
+22. Privacidade e GDPR
+Faturas podem conter:
+• NIF;
+• nome;
+• morada;
+• telefone;
+• dados de empresa;
+• hábitos de consumo;
+• localização;
+• data/hora;
+• informação sensível indireta.
+Princípios:
+Guardar só o necessário.
+Permitir apagar conta.
+Permitir apagar faturas.
+Definir retenção de imagens.
+Não usar imagens para treinar modelos sem consentimento explícito.
+Encriptar dados sensíveis.
+Controlar acessos.
+Recomendação
+Guarda a imagem original por pouco tempo no plano gratuito.
+Exemplo:
+Free: imagem guardada 7 dias
+Basic: imagem guardada 90 dias
+Plus: imagem guardada 1 ano
+Business: configurável
+Mas guarda os dados estruturados enquanto o utilizador quiser manter histórico.
+23. Onde o júnior pode errar
+Erro 1 — Pensar que OCR é sempre certo
+Problema:
+25
+
+---PAGE---
+
+A IA lê "8,90" como "3,90".
+Consequência:
+Conta dividida errada.
+Utilizadores perdem confiança.
+Solução:
+Mostrar confiança por linha.
+Pedir revisão.
+Validar totais.
+Erro 2 — Usar float para dinheiro
+Errado:
+const total = 0.1 + 0.2;
+Certo:
+const totalCents = 10 + 20;
+Erro 3 — Não lidar com arredondamentos
+Errado:
+Dividir 10€ por 3 e perder 1 cêntimo.
+Certo:
+Distribuir diferença pelo maior participante ou pelo primeiro da lista.
+Erro 4 — Fazer pagamentos cedo demais
+Pagamentos parecem fixes, mas são complexos.
+Primeiro prova que:
+26
+
+---PAGE---
+
+As pessoas querem digitalizar e dividir contas.
+Depois adiciona pagamento.
+Erro 5 — Não ter edição manual
+Sem edição manual, uma fatura mal lida estraga tudo.
+Erro 6 — Não guardar resposta bruta da IA
+Deves guardar:
+raw_ocr_json
+raw_llm_json
+processed_json
+Isto ajuda a fazer debug.
+Erro 7 — Não medir precisão
+Cria métricas:
+% faturas extraídas sem edição
+% linhas editadas pelo utilizador
+diferença média entre total extraído e total real
+tempo médio até sessão criada
+Erro 8 — Criar muitas features antes de validar
+Não construas logo:
+equipas
+relatórios fiscais
+contabilidade
+pagamentos automáticos
+marketplace de fornecedores
+Foca no core.
+27
+
+---PAGE---
+
+24. Estratégia de IA
+Prompt de extração
+Exemplo:
+Analisa esta fatura portuguesa. Extrai os dados em JSON.
+Não inventes valores.
+Se não tiveres certeza, usa null.
+Cada item deve ter descrição, quantidade, preço unitário e total.
+Confirma se a soma dos itens corresponde ao total.
+Devolve warnings quando algo não bater certo.
+Schema
+Usa schema fixo.
+Não aceites respostas livres.
+Pós-processamento
+Depois da IA:
+1. Normalizar moeda.
+2. Converter valores para cêntimos.
+3. Validar totais.
+4. Marcar linhas suspeitas.
+5. Classificar categoria.
+6. Guardar.
+25. Roadmap recomendado
+Fase 0 — Protótipo técnico
+Objetivo:
+Conseguir tirar foto a 20 faturas reais e extrair itens.
+Entrega:
+• upload de imagem;
+• extração JSON;
+28
+
+---PAGE---
+
+• ecrã simples para ver resultado.
+Não precisa de login bonito.
+Fase 1 — MVP
+Objetivo:
+Resolver a divisão de conta entre amigos.
+Features:
+• login;
+• digitalizar fatura;
+• editar itens;
+• criar sessão;
+• link partilhável;
+• participantes escolhem itens;
+• cálculo automático;
+• resumo final.
+Fase 2 — Histórico e estatísticas
+Features:
+• dashboard mensal;
+• categorias;
+• fornecedores;
+• gráficos;
+• filtros;
+• pesquisa.
+Fase 3 — Monetização
+Features:
+• trial;
+• planos;
+• limites;
+• paywall;
+• billing;
+• gestão de subscrição.
+Fase 4 — Pagamentos
+Features:
+• guardar número MB WAY do criador;
+• instruções de pagamento;
+29
+
+---PAGE---
+
+• integração SIBS;
+• estados de pagamento;
+• webhooks;
+• recibos de pagamento.
+Fase 5 — Business
+Features:
+• espaços de trabalho;
+• múltiplos utilizadores;
+• fornecedores;
+• exportações;
+• relatórios;
+• permissões;
+• contabilista.
+26. Testes obrigatórios
+Testes unitários
+• cálculo de divisão;
+• arredondamentos;
+• descontos;
+• gorjetas;
+• IVA;
+• quantidades parciais;
+• itens partilhados.
+Testes de integração
+• upload → OCR → receipt ready;
+• criar sessão;
+• participante escolhe item;
+• resumo final;
+• limite de plano;
+• upgrade de plano.
+Testes com faturas reais
+Cria dataset interno:
+50 faturas de restaurantes
+50 faturas de supermercado
+20 faturas de combustível
+20 faturas de fornecedores
+30
+
+---PAGE---
+
+Para cada uma, guarda resultado correto manual.
+Mede:
+precisão por campo
+precisão por linha
+diferença no total
+tempo de processamento
+27. Métricas de produto
+Mede desde o primeiro dia:
+Activation:
+- % utilizadores que digitalizam primeira fatura
+Core value:
+- % faturas que viram sessão partilhada
+- tempo entre foto e sessão criada
+- nº médio de participantes por sessão
+Quality:
+- % linhas editadas
+- % faturas com erro de total
+- % sessões abandonadas
+Monetização:
+- trial → paid conversion
+- uso médio de faturas por plano
+- upgrades por limite atingido
+- churn mensal
+28. Possível naming
+Ideias:
+ContaCerta
+SplitFatura
+PagaCerto
+MesaCerta
+FaturaSplit
+Dividly
+31
+
+---PAGE---
+
+Receiptly
+ContaJusta
+Melhor posicionamento em português:
+ContaCerta — divide faturas sem fazer contas.
+29. Decisão técnica final
+Stack final recomendada
+App:
+React Native + Expo + TypeScript
+Backend:
+NestJS + TypeScript
+Workers IA:
+Python
+Database:
+PostgreSQL
+ORM:
+Prisma
+Storage:
+Cloudflare R2 ou AWS S3
+Queue:
+Redis + BullMQ
+Auth:
+Clerk, Supabase Auth ou Auth.js
+Payments subscrição:
+Stripe Billing
+Pagamentos PT:
+SIBS Gateway / MB WAY numa fase posterior
+Analytics:
+PostHog
+Errors:
+Sentry
+32
+
+---PAGE---
+
+Infra:
+Render/Fly.io/Railway no início
+AWS/GCP/Azure quando escalar
+30. O que não fazer agora
+Não fazer no MVP:
+Pagamentos automáticos
+Contabilidade avançada
+Multi-empresa
+Integração e-Fatura
+OCR 100% custom
+App nativa iOS e Android separada
+Dashboard complexo
+Marketplace
+Cartões virtuais
+Reembolsos automáticos
+Isto só atrasa.
+31. O primeiro sprint
+Semana 1
+Criar app Expo
+Criar backend
+Criar upload de imagem
+Guardar imagem no storage
+Criar tabela receipts
+Semana 2
+Integrar IA/OCR
+Extrair JSON
+Guardar raw JSON
+Criar ecrã de revisão
+33
+
+---PAGE---
+
+Semana 3
+Editar itens
+Validar totais
+Criar sessão de split
+Gerar link público
+Semana 4
+Participante entra
+Escolhe itens
+Calcula total
+Mostra resumo final
+No fim de 4 semanas, tens algo testável com pessoas reais.
+32. Regra de ouro
+Esta aplicação só vai ter sucesso se for mais rápida do que fazer contas à mão.
+Se o utilizador tiver de:
+tirar foto
+esperar muito
+corrigir tudo
+convidar amigos
+explicar como funciona
+ver erros
+ele desiste.
+O fluxo ideal tem de ser:
+Foto → confirmar → partilhar → escolher → pagar
+Tudo o resto é secundário.
+34
+
+---PAGE---
+
+33. Conclusão
+A ideia é boa porque junta três dores reais:
+1. dividir contas de forma justa;
+2. evitar contas manuais em grupo;
+3. guardar histórico e estatísticas de gastos.
+Mas o produto deve começar pequeno.
+A versão certa para começar é:
+Digitalizar fatura de restaurante
++ transformar em checklist
++ partilhar link
++ calcular quanto cada pessoa paga
+Depois disso, evolui para:
+estatísticas
+subscrições
+limites por plano
+pagamentos
+business/restaurantes
+A parte mais importante tecnicamente é:
+extração confiável
+validação matemática
+edição manual rápida
+cálculo monetário correto
+Se isto estiver bem feito, o resto pode crescer por cima.
+35
