@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { StatsModule } from './stats/stats.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -10,6 +11,7 @@ import { StatsModule } from './stats/stats.module';
     ReceiptsModule,
     SuppliersModule,
     StatsModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}
