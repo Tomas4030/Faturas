@@ -32,10 +32,19 @@ export interface ProcessedReceiptFields {
   totalCents: number | null;
 }
 
+export interface ProcessedTax {
+  rate: number;
+  baseCents: number;
+  amountCents: number;
+}
+
 export interface PostprocessResult {
   receiptFields: ProcessedReceiptFields;
   items: ProcessedItem[];
+  taxes: ProcessedTax[];
   warnings: string[];
+  /** Categoria macro sugerida a partir das categorias dos itens da IA. */
+  suggestedCategory: string | null;
 }
 
 function toCentsOrNull(value: number | null | undefined): number | null {
@@ -133,6 +142,14 @@ export function postprocess(raw: unknown): PostprocessResult {
     }
   }
 
+  const taxes: ProcessedTax[] = (data.taxes ?? [])
+    .filter((t) => t.rate != null && (t.base != null || t.amount != null))
+    .map((t) => ({
+      rate: Math.round(t.rate as number),
+      baseCents: toCentsOrNull(t.base) ?? 0,
+      amountCents: toCentsOrNull(t.amount) ?? 0,
+    }));
+
   let documentDate: Date | null = null;
   if (data.document?.date) {
     const d = new Date(data.document.date);
@@ -153,6 +170,40 @@ export function postprocess(raw: unknown): PostprocessResult {
       totalCents: grandTotalCents,
     },
     items,
+    taxes,
     warnings,
+    suggestedCategory: deriveMacroCategory(items),
   };
+}
+
+/** Mapeia categorias de item da IA para a categoria macro da fatura. */
+const ITEM_TO_MACRO: Array<[RegExp, string]> = [
+  [/restaurant|food|drink|meal|cafe|coffee/i, 'restaurante'],
+  [/grocer|supermark|supermerc/i, 'supermercado'],
+  [/fuel|gas|combust/i, 'combustivel'],
+  [/supplier|fornecedor|wholesale/i, 'fornecedor'],
+  [/leisure|entertain|lazer|cinema/i, 'lazer'],
+  [/service|servic|utility|telecom/i, 'servicos'],
+];
+
+function deriveMacroCategory(items: ProcessedItem[]): string | null {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    if (!item.category) continue;
+    for (const [pattern, macro] of ITEM_TO_MACRO) {
+      if (pattern.test(item.category)) {
+        counts.set(macro, (counts.get(macro) ?? 0) + 1);
+        break;
+      }
+    }
+  }
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [macro, count] of counts) {
+    if (count > bestCount) {
+      best = macro;
+      bestCount = count;
+    }
+  }
+  return best;
 }

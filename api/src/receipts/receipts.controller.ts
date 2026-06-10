@@ -62,4 +62,9 @@ export class ReceiptsController {
   updateItems(@Param('id') id: string, @Body() body: unknown) {
     return this.receipts.updateItems(id, body);
   }
+
+  @Patch(':id')
+  updateReceipt(@Param('id') id: string, @Body() body: unknown) {
+    return this.receipts.updateReceipt(id, body);
+  }
 }

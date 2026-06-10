@@ -10,7 +10,13 @@ import { PrismaService } from '../prisma.service';
 import { ExtractionService } from '../extraction/extraction.service';
 import { postprocess } from '../extraction/postprocess';
 import { validateLine, validateTotals } from '../money/money';
-import { ReceiptDto, toReceiptDto, updateItemsSchema } from './dto';
+import { SuppliersService } from '../suppliers/suppliers.service';
+import {
+  ReceiptDto,
+  toReceiptDto,
+  updateItemsSchema,
+  updateReceiptSchema,
+} from './dto';
 
 export const UPLOADS_DIR = join(process.cwd(), 'uploads');
 
@@ -21,6 +27,7 @@ export class ReceiptsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly extraction: ExtractionService,
+    private readonly suppliers: SuppliersService,
   ) {}
 
   async create(file: Express.Multer.File): Promise<{
@@ -63,15 +70,31 @@ export class ReceiptsService {
     const raw = await this.extraction.extract(imageBuffer, receipt.mimeType);
     const processed = postprocess(raw);
 
+    const supplier = processed.receiptFields.merchantName
+      ? await this.suppliers.findOrCreateSupplier({
+          name: processed.receiptFields.merchantName,
+          nif: processed.receiptFields.merchantNif,
+        })
+      : null;
+    const category = await this.suppliers.resolveCategory({
+      merchantName: processed.receiptFields.merchantName,
+      supplier,
+      aiSuggestion: processed.suggestedCategory,
+    });
+
     await this.prisma.$transaction([
       this.prisma.receiptItem.deleteMany({ where: { receiptId: id } }),
+      this.prisma.receiptTax.deleteMany({ where: { receiptId: id } }),
       this.prisma.receipt.update({
         where: { id },
         data: {
           ...processed.receiptFields,
+          supplierId: supplier?.id ?? null,
+          category,
           status: 'needs_review',
           rawOcrJson: raw as object,
           warnings: processed.warnings,
+          taxes: { create: processed.taxes },
           items: {
             create: processed.items.map((item) => ({
               description: item.description,
@@ -92,7 +115,7 @@ export class ReceiptsService {
   async findOne(id: string): Promise<ReceiptDto> {
     const receipt = await this.prisma.receipt.findUnique({
       where: { id },
-      include: { items: true },
+      include: { items: true, taxes: true },
     });
     if (!receipt) throw new NotFoundException('Fatura não encontrada');
     return toReceiptDto(receipt);
@@ -100,11 +123,51 @@ export class ReceiptsService {
 
   async findAll(): Promise<ReceiptDto[]> {
     const receipts = await this.prisma.receipt.findMany({
-      include: { items: true },
+      include: { items: true, taxes: true },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
     return receipts.map(toReceiptDto);
+  }
+
+  /** Corrige categoria e/ou nome do comerciante; memoriza a correção. */
+  async updateReceipt(id: string, body: unknown): Promise<ReceiptDto> {
+    const parsed = updateReceiptSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+    const existing = await this.prisma.receipt.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Fatura não encontrada');
+
+    const merchantName =
+      parsed.data.merchant_name ?? existing.merchantName ?? null;
+    let supplierId = existing.supplierId;
+
+    if (parsed.data.merchant_name) {
+      const supplier = await this.suppliers.findOrCreateSupplier({
+        name: parsed.data.merchant_name,
+        nif: existing.merchantNif,
+      });
+      supplierId = supplier?.id ?? null;
+    }
+
+    if (parsed.data.category && merchantName) {
+      await this.suppliers.recordCategoryCorrection(
+        merchantName,
+        parsed.data.category,
+        supplierId,
+      );
+    }
+
+    await this.prisma.receipt.update({
+      where: { id },
+      data: {
+        merchantName,
+        supplierId,
+        category: parsed.data.category ?? existing.category,
+      },
+    });
+    return this.findOne(id);
   }
 
   async updateItems(id: string, body: unknown): Promise<ReceiptDto> {

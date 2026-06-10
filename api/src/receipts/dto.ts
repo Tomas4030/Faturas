@@ -1,5 +1,25 @@
 import { z } from 'zod';
-import { Prisma, Receipt, ReceiptItem } from '@prisma/client';
+import { Prisma, Receipt, ReceiptItem, ReceiptTax } from '@prisma/client';
+
+export const MACRO_CATEGORIES = [
+  'supermercado',
+  'restaurante',
+  'combustivel',
+  'fornecedor',
+  'lazer',
+  'servicos',
+  'outros',
+] as const;
+
+/** Body do PATCH /receipts/:id — correções de categoria/comerciante. */
+export const updateReceiptSchema = z
+  .object({
+    category: z.enum(MACRO_CATEGORIES).optional(),
+    merchant_name: z.string().min(1).optional(),
+  })
+  .refine((b) => b.category != null || b.merchant_name != null, {
+    message: 'Indica category e/ou merchant_name',
+  });
 
 /** Body do PATCH /receipts/:id/items — lista completa de itens revistos. */
 export const updateItemsSchema = z.object({
@@ -22,6 +42,9 @@ export interface ReceiptDto {
   id: string;
   status: string;
   failure_reason: string | null;
+  category: string | null;
+  supplier_id: string | null;
+  taxes: Array<{ rate: number; base_cents: number; amount_cents: number }>;
   merchant: { name: string | null; nif: string | null };
   document: {
     number: string | null;
@@ -51,12 +74,19 @@ export interface ReceiptDto {
 }
 
 export function toReceiptDto(
-  receipt: Receipt & { items: ReceiptItem[] },
+  receipt: Receipt & { items: ReceiptItem[]; taxes?: ReceiptTax[] },
 ): ReceiptDto {
   return {
     id: receipt.id,
     status: receipt.status,
     failure_reason: receipt.failureReason,
+    category: receipt.category,
+    supplier_id: receipt.supplierId,
+    taxes: (receipt.taxes ?? []).map((t) => ({
+      rate: t.rate,
+      base_cents: t.baseCents,
+      amount_cents: t.amountCents,
+    })),
     merchant: { name: receipt.merchantName, nif: receipt.merchantNif },
     document: {
       number: receipt.documentNumber,
