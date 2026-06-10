@@ -14,8 +14,46 @@ enum ReceiptStatus {
   failed
 }
 
+model Supplier {
+  id             String    @id @default(cuid())
+  name           String
+  nif            String?   @unique
+  normalizedName String    @unique @map("normalized_name")
+  category       String?
+  receipts       Receipt[]
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("suppliers")
+}
+
+model CategoryCorrection {
+  id                     String   @id @default(cuid())
+  normalizedMerchantName String   @unique @map("normalized_merchant_name")
+  category               String
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("category_corrections")
+}
+
+model ReceiptTax {
+  id          String  @id @default(cuid())
+  receiptId   String  @map("receipt_id")
+  receipt     Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  rate        Int
+  baseCents   Int     @map("base_cents")
+  amountCents Int     @map("amount_cents")
+
+  @@map("receipt_taxes")
+}
+
 model Receipt {
   id              String        @id @default(cuid())
+  supplierId      String?       @map("supplier_id")
+  supplier        Supplier?     @relation(fields: [supplierId], references: [id])
+  category        String?
+  taxes           ReceiptTax[]
   merchantName    String?       @map("merchant_name")
   merchantNif     String?       @map("merchant_nif")
   documentNumber  String?       @map("document_number")
