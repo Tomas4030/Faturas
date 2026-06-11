@@ -8,9 +8,11 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { categoryLabel, formatCents, listReceipts, ReceiptDto } from '../api';
 import { useScanReceipt } from '../hooks/useScanReceipt';
+import { colors, radius } from '../theme';
 import type { RootStackParamList } from '../navigation';
 
 const STATUS_LABEL: Record<ReceiptDto['status'], string> = {
@@ -23,6 +25,7 @@ const STATUS_LABEL: Record<ReceiptDto['status'], string> = {
 export function ExpensesScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
   const [receipts, setReceipts] = useState<ReceiptDto[]>([]);
   const [loading, setLoading] = useState(false);
   const { scan, uploading } = useScanReceipt();
@@ -92,7 +95,10 @@ export function ExpensesScreen() {
         renderItem={renderItem}
         refreshing={loading}
         onRefresh={refresh}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[
+          styles.list,
+          { paddingBottom: 96 + insets.bottom },
+        ]}
         ListEmptyComponent={
           <Text style={styles.empty}>
             Ainda não digitalizaste nenhuma fatura.
@@ -100,12 +106,16 @@ export function ExpensesScreen() {
         }
       />
       <Pressable
-        style={[styles.scanButton, uploading ? styles.scanDisabled : null]}
+        style={[
+          styles.scanButton,
+          { bottom: 16 + insets.bottom },
+          uploading ? styles.scanDisabled : null,
+        ]}
         onPress={scan}
         disabled={uploading}
       >
         {uploading ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={colors.onAccent} />
         ) : (
           <Text style={styles.scanLabel}>📷  Digitalizar fatura</Text>
         )}
@@ -115,12 +125,17 @@ export function ExpensesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f7' },
-  list: { padding: 16, paddingBottom: 96 },
-  empty: { textAlign: 'center', color: '#888', marginTop: 48, fontSize: 15 },
+  container: { flex: 1, backgroundColor: colors.bg },
+  list: { padding: 16 },
+  empty: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    marginTop: 48,
+    fontSize: 15,
+  },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
     padding: 14,
     marginBottom: 10,
   },
@@ -129,22 +144,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  cardTitle: { fontSize: 16, fontWeight: '600', flex: 1, marginRight: 8 },
-  cardTotal: { fontSize: 16, fontWeight: '700' },
-  cardSubtitle: { color: '#888', marginTop: 4, fontSize: 13 },
-  cardStatus: { marginTop: 4, fontSize: 13, color: '#34a853' },
-  statusFailed: { color: '#d93025' },
-  statusReview: { color: '#f29900' },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 8,
+    color: colors.text,
+  },
+  cardTotal: { fontSize: 16, fontWeight: '700', color: colors.text },
+  cardSubtitle: { color: colors.textMuted, marginTop: 4, fontSize: 13 },
+  cardStatus: { marginTop: 4, fontSize: 13, color: colors.success },
+  statusFailed: { color: colors.danger },
+  statusReview: { color: colors.warning },
   scanButton: {
     position: 'absolute',
-    bottom: 16,
     left: 16,
     right: 16,
-    backgroundColor: '#1a73e8',
-    borderRadius: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radius.lg,
     paddingVertical: 16,
     alignItems: 'center',
   },
   scanDisabled: { opacity: 0.6 },
-  scanLabel: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  scanLabel: { color: colors.onAccent, fontSize: 17, fontWeight: '700' },
 });

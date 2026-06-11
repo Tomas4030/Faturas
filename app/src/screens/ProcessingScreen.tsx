@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { getReceipt } from '../api';
+import { colors, radius } from '../theme';
 import type { RootStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Processing'>;
@@ -58,7 +59,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#1a73e8" />
+      <ActivityIndicator size="large" color={colors.accent} />
       <Text style={styles.text}>A ler a fatura…</Text>
       <Text style={styles.subtext}>
         A extrair itens, preços e totais. Isto demora alguns segundos.
@@ -73,23 +74,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: colors.bg,
   },
-  text: { fontSize: 18, fontWeight: '600', marginTop: 20 },
-  subtext: { color: '#888', textAlign: 'center', marginTop: 8, fontSize: 14 },
+  text: { fontSize: 18, fontWeight: '600', marginTop: 20, color: colors.text },
+  subtext: {
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+    fontSize: 14,
+  },
   errorIcon: { fontSize: 40 },
   errorText: {
     fontSize: 16,
     textAlign: 'center',
     marginTop: 16,
-    color: '#d93025',
+    color: colors.danger,
   },
   button: {
     marginTop: 24,
-    backgroundColor: '#1a73e8',
-    borderRadius: 12,
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
     paddingVertical: 12,
     paddingHorizontal: 24,
   },
-  buttonLabel: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonLabel: { color: colors.onAccent, fontSize: 16, fontWeight: '700' },
 });

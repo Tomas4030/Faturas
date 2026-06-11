@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { uploadReceipt } from '../api';
@@ -26,12 +27,19 @@ export function useScanReceipt() {
     if (result.canceled || !result.assets[0]) return;
     setUploading(true);
     try {
-      const { receipt_id } = await uploadReceipt(result.assets[0].uri);
+      // Fotos de câmara podem ter 10-20MB; reduz para upload rápido e
+      // menos tokens na IA (largura máx. 1600px chega para ler recibos).
+      const resized = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 1600 } }],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
+      );
+      const { receipt_id } = await uploadReceipt(resized.uri);
       navigation.navigate('Processing', { receiptId: receipt_id });
-    } catch {
+    } catch (error) {
       Alert.alert(
         'Erro no envio',
-        'Não foi possível enviar a fatura. Confirma que a API está a correr e que estás na mesma rede Wi-Fi.',
+        `Não foi possível enviar a fatura.\n\n${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
       setUploading(false);

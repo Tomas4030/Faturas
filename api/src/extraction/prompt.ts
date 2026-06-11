@@ -7,12 +7,16 @@ Regras obrigatórias:
 - Devolve warnings (em português) quando algo não bater certo.
 - Os valores monetários são números em euros (ex.: 18.5), não strings.
 - A data deve estar no formato YYYY-MM-DD.
+- Em document.category escolhe a categoria da fatura inteira de entre:
+  "supermercado", "restaurante", "combustivel", "fornecedor", "compras",
+  "lazer", "servicos", "outros".
+  (FNAC/Worten/roupa/eletrónica = "compras"; cash&carry/grossistas = "fornecedor".)
 - Responde APENAS com o JSON, sem texto adicional.
 
 Formato exato da resposta:
 {
   "merchant": { "name": string|null, "nif": string|null, "address": string|null },
-  "document": { "type": "receipt"|"invoice"|null, "date": string|null, "number": string|null, "atcud": string|null, "currency": string|null },
+  "document": { "type": "receipt"|"invoice"|null, "date": string|null, "number": string|null, "atcud": string|null, "currency": string|null, "category": string|null },
   "items": [
     { "description": string, "quantity": number|null, "unit_price": number|null, "total": number|null, "category": string|null, "confidence": number|null }
   ],

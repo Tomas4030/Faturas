@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   categoryLabel,
@@ -22,6 +23,7 @@ import {
   updateItems,
   updateReceipt,
 } from '../api';
+import { colors, radius } from '../theme';
 import type { RootStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Review'>;
@@ -51,11 +53,14 @@ function textToCents(text: string): number {
 }
 
 function draftLineTotalCents(item: DraftItem): number {
-  return Math.round(textToNumber(item.quantityText) * textToCents(item.unitPriceText));
+  return Math.round(
+    textToNumber(item.quantityText) * textToCents(item.unitPriceText),
+  );
 }
 
 export function ReviewScreen({ navigation, route }: Props) {
   const { receiptId } = route.params;
+  const insets = useSafeAreaInsets();
   const [receipt, setReceipt] = useState<ReceiptDto | null>(null);
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -141,7 +146,7 @@ export function ReviewScreen({ navigation, route }: Props) {
   if (receipt == null) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#1a73e8" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -151,7 +156,12 @@ export function ReviewScreen({ navigation, route }: Props) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: 120 + insets.bottom },
+        ]}
+      >
         <Text style={styles.merchant}>
           {receipt.merchant.name ?? 'Fatura sem nome'}
         </Text>
@@ -215,6 +225,7 @@ export function ReviewScreen({ navigation, route }: Props) {
                 style={styles.descriptionInput}
                 value={item.description}
                 placeholder="Descrição"
+                placeholderTextColor={colors.textMuted}
                 onChangeText={(t) => setDraft(item.key, { description: t })}
               />
               <Pressable
@@ -286,12 +297,16 @@ export function ReviewScreen({ navigation, route }: Props) {
       </ScrollView>
 
       <Pressable
-        style={[styles.confirmButton, saving ? styles.confirmDisabled : null]}
+        style={[
+          styles.confirmButton,
+          { bottom: 16 + insets.bottom },
+          saving ? styles.confirmDisabled : null,
+        ]}
         onPress={confirm}
         disabled={saving}
       >
         {saving ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={colors.onAccent} />
         ) : (
           <Text style={styles.confirmLabel}>Confirmar</Text>
         )}
@@ -301,65 +316,81 @@ export function ReviewScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f7' },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll: { padding: 16, paddingBottom: 120 },
-  merchant: { fontSize: 22, fontWeight: '700' },
-  date: { color: '#888', marginTop: 2, marginBottom: 12 },
+  container: { flex: 1, backgroundColor: colors.bg },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg,
+  },
+  scroll: { padding: 16 },
+  merchant: { fontSize: 22, fontWeight: '700', color: colors.text },
+  date: { color: colors.textMuted, marginTop: 2, marginBottom: 12 },
   categoryChips: { flexGrow: 0, marginBottom: 12 },
   chip: {
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#e8eaed',
+    backgroundColor: colors.chip,
     marginRight: 6,
   },
-  chipActive: { backgroundColor: '#1a73e8' },
-  chipLabel: { fontSize: 13, color: '#444' },
-  chipLabelActive: { color: '#fff', fontWeight: '600' },
+  chipActive: { backgroundColor: colors.accent },
+  chipLabel: { fontSize: 13, color: colors.textMuted },
+  chipLabelActive: { color: colors.onAccent, fontWeight: '700' },
   warningBox: {
-    backgroundColor: '#fef7e0',
-    borderRadius: 10,
+    backgroundColor: colors.warningBg,
+    borderRadius: radius.sm + 2,
     padding: 12,
     marginBottom: 12,
   },
-  warningText: { color: '#b06000', fontSize: 13, marginVertical: 1 },
+  warningText: { color: colors.warning, fontSize: 13, marginVertical: 1 },
   itemCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
     padding: 12,
     marginBottom: 10,
   },
-  itemSuspect: { backgroundColor: '#fff8e1', borderColor: '#f29900', borderWidth: 1 },
+  itemSuspect: {
+    backgroundColor: colors.warningBg,
+    borderColor: colors.warning,
+    borderWidth: 1,
+  },
   itemHeader: { flexDirection: 'row', alignItems: 'center' },
   descriptionInput: {
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
     paddingVertical: 4,
+    color: colors.text,
   },
   deleteButton: { marginLeft: 8, padding: 4 },
-  deleteLabel: { color: '#d93025', fontSize: 16 },
+  deleteLabel: { color: colors.danger, fontSize: 16 },
   itemFields: { flexDirection: 'row', marginTop: 8 },
   field: { flex: 1, marginRight: 10 },
   fieldTotal: { marginRight: 0, alignItems: 'flex-end' },
-  fieldLabel: { fontSize: 12, color: '#888', marginBottom: 2 },
+  fieldLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 2 },
   fieldInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 6,
     fontSize: 15,
-    backgroundColor: '#fafafa',
+    backgroundColor: colors.cardAlt,
+    color: colors.text,
   },
-  lineTotal: { fontSize: 16, fontWeight: '700', paddingVertical: 6 },
-  suspectLabel: { color: '#b06000', fontSize: 12, marginTop: 6 },
+  lineTotal: {
+    fontSize: 16,
+    fontWeight: '700',
+    paddingVertical: 6,
+    color: colors.text,
+  },
+  suspectLabel: { color: colors.warning, fontSize: 12, marginTop: 6 },
   addButton: { alignItems: 'center', paddingVertical: 12 },
-  addLabel: { color: '#1a73e8', fontSize: 16, fontWeight: '600' },
+  addLabel: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   totals: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
     padding: 14,
     marginTop: 4,
   },
@@ -368,19 +399,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginVertical: 2,
   },
-  totalLabel: { fontSize: 15, color: '#555' },
-  totalValue: { fontSize: 15, fontWeight: '700' },
-  mismatch: { color: '#d93025', marginTop: 8, fontSize: 13 },
+  totalLabel: { fontSize: 15, color: colors.textMuted },
+  totalValue: { fontSize: 15, fontWeight: '700', color: colors.text },
+  mismatch: { color: colors.danger, marginTop: 8, fontSize: 13 },
   confirmButton: {
     position: 'absolute',
-    bottom: 24,
     left: 16,
     right: 16,
-    backgroundColor: '#188038',
-    borderRadius: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radius.lg,
     paddingVertical: 16,
     alignItems: 'center',
   },
   confirmDisabled: { opacity: 0.6 },
-  confirmLabel: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  confirmLabel: { color: colors.onAccent, fontSize: 17, fontWeight: '700' },
 });

@@ -15,6 +15,7 @@ import {
   getSupplier,
   SupplierDetailDto,
 } from '../api';
+import { colors, radius } from '../theme';
 import type { RootStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SupplierDetail'>;
@@ -37,7 +38,7 @@ export function SupplierDetailScreen({ navigation, route }: Props) {
   if (supplier == null) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#1a73e8" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -78,29 +79,34 @@ export function SupplierDetailScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f7' },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: colors.bg },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg,
+  },
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     padding: 20,
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
+    borderBottomColor: colors.border,
   },
-  total: { fontSize: 30, fontWeight: '700' },
-  headerSub: { color: '#888', marginTop: 4 },
+  total: { fontSize: 30, fontWeight: '800', color: colors.text },
+  headerSub: { color: colors.textMuted, marginTop: 4 },
   list: { padding: 16 },
   row: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
     padding: 14,
     marginBottom: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  rowDate: { fontSize: 15, fontWeight: '600' },
-  rowCategory: { fontSize: 13, color: '#888', marginTop: 2 },
-  rowTotal: { fontSize: 16, fontWeight: '700' },
-  empty: { textAlign: 'center', color: '#888', marginTop: 32 },
+  rowDate: { fontSize: 15, fontWeight: '600', color: colors.text },
+  rowCategory: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  rowTotal: { fontSize: 16, fontWeight: '700', color: colors.text },
+  empty: { textAlign: 'center', color: colors.textMuted, marginTop: 32 },
 });

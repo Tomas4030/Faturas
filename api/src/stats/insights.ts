@@ -5,6 +5,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   restaurante: 'Restaurantes',
   combustivel: 'Combustível',
   fornecedor: 'Fornecedores',
+  compras: 'Compras',
   lazer: 'Lazer',
   servicos: 'Serviços',
   outros: 'Outros',

@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   categoryLabel,
@@ -16,6 +17,7 @@ import {
   StatsSummaryDto,
 } from '../api';
 import { useScanReceipt } from '../hooks/useScanReceipt';
+import { colors, radius } from '../theme';
 import type { RootStackParamList } from '../navigation';
 
 const MONTH_NAMES = [
@@ -52,6 +54,7 @@ function monthLabel(month: string): string {
 export function DashboardScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
   const [month, setMonth] = useState(currentMonth());
   const [stats, setStats] = useState<StatsSummaryDto | null>(null);
   const [loading, setLoading] = useState(false);
@@ -86,7 +89,12 @@ export function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: 96 + insets.bottom },
+        ]}
+      >
         <View style={styles.monthSelector}>
           <Pressable hitSlop={12} onPress={() => setMonth(shiftMonth(month, -1))}>
             <Text style={styles.monthArrow}>‹</Text>
@@ -100,13 +108,13 @@ export function DashboardScreen() {
         {stats == null || loading ? (
           <ActivityIndicator
             size="large"
-            color="#1a73e8"
+            color={colors.accent}
             style={styles.loading}
           />
         ) : (
           <View>
             <View style={styles.totalCard}>
-              <Text style={styles.totalLabel}>Este mês</Text>
+              <Text style={styles.totalLabel}>ESTE MÊS</Text>
               <Text style={styles.totalValue}>
                 {formatCents(stats.total_cents)}
               </Text>
@@ -133,7 +141,7 @@ export function DashboardScreen() {
 
             {stats.by_category.length > 0 ? (
               <View>
-                <Text style={styles.sectionTitle}>Por categoria</Text>
+                <Text style={styles.sectionTitle}>POR CATEGORIA</Text>
                 <View style={styles.categoryGrid}>
                   {stats.by_category.map((c) => (
                     <View key={c.category} style={styles.categoryCard}>
@@ -154,7 +162,7 @@ export function DashboardScreen() {
 
             {stats.by_day.length > 0 ? (
               <View>
-                <Text style={styles.sectionTitle}>Por dia</Text>
+                <Text style={styles.sectionTitle}>POR DIA</Text>
                 <View style={styles.chartCard}>
                   <View style={styles.chart}>
                     {stats.by_day.map((d) => (
@@ -177,7 +185,7 @@ export function DashboardScreen() {
 
             {stats.top_suppliers.length > 0 ? (
               <View>
-                <Text style={styles.sectionTitle}>Top fornecedores</Text>
+                <Text style={styles.sectionTitle}>TOP FORNECEDORES</Text>
                 <View style={styles.suppliersCard}>
                   {stats.top_suppliers.map((s) => (
                     <Pressable
@@ -212,12 +220,16 @@ export function DashboardScreen() {
       </ScrollView>
 
       <Pressable
-        style={[styles.scanButton, uploading ? styles.scanDisabled : null]}
+        style={[
+          styles.scanButton,
+          { bottom: 16 + insets.bottom },
+          uploading ? styles.scanDisabled : null,
+        ]}
         onPress={scan}
         disabled={uploading}
       >
         {uploading ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={colors.onAccent} />
         ) : (
           <Text style={styles.scanLabel}>📷  Digitalizar fatura</Text>
         )}
@@ -227,8 +239,8 @@ export function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f7' },
-  scroll: { padding: 16, paddingBottom: 96 },
+  container: { flex: 1, backgroundColor: colors.bg },
+  scroll: { padding: 16 },
   loading: { marginTop: 48 },
   monthSelector: {
     flexDirection: 'row',
@@ -236,49 +248,65 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  monthArrow: { fontSize: 28, color: '#1a73e8', paddingHorizontal: 20 },
+  monthArrow: { fontSize: 28, color: colors.accent, paddingHorizontal: 20 },
   monthLabel: {
     fontSize: 17,
     fontWeight: '600',
     minWidth: 150,
     textAlign: 'center',
+    color: colors.text,
   },
   totalCard: {
-    backgroundColor: '#1a73e8',
-    borderRadius: 16,
+    backgroundColor: colors.accent,
+    borderRadius: radius.lg,
     padding: 20,
     marginBottom: 12,
   },
-  totalLabel: { color: '#cfe0ff', fontSize: 14 },
-  totalValue: { color: '#fff', fontSize: 34, fontWeight: '700', marginTop: 4 },
-  totalSub: { color: '#cfe0ff', fontSize: 13, marginTop: 6 },
+  totalLabel: { color: colors.onAccent, fontSize: 12, letterSpacing: 1 },
+  totalValue: {
+    color: colors.onAccent,
+    fontSize: 36,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  totalSub: { color: colors.onAccent, fontSize: 13, marginTop: 6, opacity: 0.8 },
   insightCard: {
-    backgroundColor: '#e8f0fe',
-    borderRadius: 12,
+    backgroundColor: colors.insightBg,
+    borderRadius: radius.md,
     padding: 12,
     marginBottom: 8,
   },
-  insightText: { color: '#174ea6', fontSize: 14 },
-  empty: { textAlign: 'center', color: '#888', marginVertical: 24 },
+  insightText: { color: colors.insightText, fontSize: 14 },
+  empty: { textAlign: 'center', color: colors.textMuted, marginVertical: 24 },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: '700',
-    marginTop: 16,
+    letterSpacing: 1,
+    marginTop: 18,
     marginBottom: 8,
-    color: '#444',
+    color: colors.textMuted,
   },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   categoryCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
     padding: 12,
     width: '48%',
     flexGrow: 1,
   },
-  categoryName: { fontSize: 13, color: '#666' },
-  categoryValue: { fontSize: 18, fontWeight: '700', marginTop: 4 },
-  categoryCount: { fontSize: 12, color: '#999', marginTop: 2 },
-  chartCard: { backgroundColor: '#fff', borderRadius: 12, padding: 12 },
+  categoryName: { fontSize: 13, color: colors.textMuted },
+  categoryValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 4,
+    color: colors.text,
+  },
+  categoryCount: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  chartCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: 12,
+  },
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -288,33 +316,32 @@ const styles = StyleSheet.create({
   barColumn: { flex: 1, alignItems: 'center' },
   bar: {
     width: '70%',
-    backgroundColor: '#1a73e8',
+    backgroundColor: colors.accent,
     borderRadius: 3,
   },
-  barLabel: { fontSize: 9, color: '#999', marginTop: 4 },
-  suppliersCard: { backgroundColor: '#fff', borderRadius: 12 },
+  barLabel: { fontSize: 9, color: colors.textMuted, marginTop: 4 },
+  suppliersCard: { backgroundColor: colors.card, borderRadius: radius.md },
   supplierRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
+    borderBottomColor: colors.border,
   },
-  supplierName: { fontSize: 15, flex: 1, marginRight: 8 },
-  supplierTotal: { fontSize: 15, fontWeight: '600' },
+  supplierName: { fontSize: 15, flex: 1, marginRight: 8, color: colors.text },
+  supplierTotal: { fontSize: 15, fontWeight: '600', color: colors.text },
   reportButton: { alignItems: 'center', paddingVertical: 16 },
-  reportLabel: { color: '#1a73e8', fontSize: 16, fontWeight: '600' },
+  reportLabel: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   scanButton: {
     position: 'absolute',
-    bottom: 16,
     left: 16,
     right: 16,
-    backgroundColor: '#1a73e8',
-    borderRadius: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radius.lg,
     paddingVertical: 16,
     alignItems: 'center',
   },
   scanDisabled: { opacity: 0.6 },
-  scanLabel: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  scanLabel: { color: colors.onAccent, fontSize: 17, fontWeight: '700' },
 });

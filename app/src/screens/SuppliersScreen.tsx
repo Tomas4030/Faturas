@@ -1,11 +1,5 @@
 import { useCallback, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -14,6 +8,7 @@ import {
   listSuppliers,
   SupplierSummaryDto,
 } from '../api';
+import { colors, radius } from '../theme';
 import type { RootStackParamList } from '../navigation';
 
 export function SuppliersScreen() {
@@ -87,18 +82,18 @@ export function SuppliersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f7' },
+  container: { flex: 1, backgroundColor: colors.bg },
   list: { padding: 16 },
   empty: {
     textAlign: 'center',
-    color: '#888',
+    color: colors.textMuted,
     marginTop: 48,
     fontSize: 15,
     paddingHorizontal: 24,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
     padding: 14,
     marginBottom: 10,
   },
@@ -107,7 +102,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  name: { fontSize: 16, fontWeight: '600', flex: 1, marginRight: 8 },
-  total: { fontSize: 16, fontWeight: '700' },
-  subtitle: { color: '#888', marginTop: 4, fontSize: 13 },
+  name: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 8,
+    color: colors.text,
+  },
+  total: { fontSize: 16, fontWeight: '700', color: colors.text },
+  subtitle: { color: colors.textMuted, marginTop: 4, fontSize: 13 },
 });

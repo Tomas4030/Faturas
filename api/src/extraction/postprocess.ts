@@ -172,8 +172,33 @@ export function postprocess(raw: unknown): PostprocessResult {
     items,
     taxes,
     warnings,
-    suggestedCategory: deriveMacroCategory(items),
+    suggestedCategory:
+      normalizeMacroCategory(data.document?.category) ??
+      deriveMacroCategory(items),
   };
+}
+
+const MACRO_CATEGORIES = new Set([
+  'supermercado',
+  'restaurante',
+  'combustivel',
+  'fornecedor',
+  'compras',
+  'lazer',
+  'servicos',
+  'outros',
+]);
+
+/** Aceita a categoria da IA só se for uma das nossas categorias macro. */
+function normalizeMacroCategory(
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+  const normalized = value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+  return MACRO_CATEGORIES.has(normalized) ? normalized : null;
 }
 
 /** Mapeia categorias de item da IA para a categoria macro da fatura. */
@@ -182,6 +207,7 @@ const ITEM_TO_MACRO: Array<[RegExp, string]> = [
   [/grocer|supermark|supermerc/i, 'supermercado'],
   [/fuel|gas|combust/i, 'combustivel'],
   [/supplier|fornecedor|wholesale/i, 'fornecedor'],
+  [/electronic|tech|cloth|roupa|book|livro|shopping/i, 'compras'],
   [/leisure|entertain|lazer|cinema/i, 'lazer'],
   [/service|servic|utility|telecom/i, 'servicos'],
 ];

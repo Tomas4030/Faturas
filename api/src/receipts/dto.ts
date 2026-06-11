@@ -6,6 +6,7 @@ export const MACRO_CATEGORIES = [
   'restaurante',
   'combustivel',
   'fornecedor',
+  'compras',
   'lazer',
   'servicos',
   'outros',

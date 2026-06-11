@@ -32,6 +32,7 @@ export const extractionResultSchema = z.object({
       number: nullableString,
       atcud: nullableString,
       currency: nullableString,
+      category: nullableString,
     })
     .nullish(),
   items: z.array(extractionItemSchema).default([]),

@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
@@ -19,6 +20,7 @@ import {
   ReportDto,
   reportCsvUrl,
 } from '../api';
+import { colors, radius } from '../theme';
 
 function currentMonth(): string {
   const now = new Date();
@@ -32,6 +34,7 @@ function shiftMonth(month: string, delta: number): string {
 }
 
 export function ReportScreen() {
+  const insets = useSafeAreaInsets();
   const [month, setMonth] = useState(currentMonth());
   const [category, setCategory] = useState<string | undefined>(undefined);
   const [report, setReport] = useState<ReportDto | null>(null);
@@ -116,7 +119,11 @@ export function ReportScreen() {
       </ScrollView>
 
       {report == null || loading ? (
-        <ActivityIndicator size="large" color="#1a73e8" style={styles.loading} />
+        <ActivityIndicator
+          size="large"
+          color={colors.accent}
+          style={styles.loading}
+        />
       ) : (
         <View style={styles.body}>
           <View style={styles.totalsCard}>
@@ -143,7 +150,10 @@ export function ReportScreen() {
           <FlatList
             data={report.rows}
             keyExtractor={(r) => r.id}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={[
+              styles.list,
+              { paddingBottom: 88 + insets.bottom },
+            ]}
             renderItem={({ item }) => (
               <View style={styles.row}>
                 <View style={styles.rowLeft}>
@@ -159,7 +169,8 @@ export function ReportScreen() {
                     {formatCents(item.total_cents)}
                   </Text>
                   <Text style={styles.rowSub}>
-                    IVA {item.tax_cents != null ? formatCents(item.tax_cents) : '—'}
+                    IVA{' '}
+                    {item.tax_cents != null ? formatCents(item.tax_cents) : '—'}
                   </Text>
                 </View>
               </View>
@@ -170,12 +181,16 @@ export function ReportScreen() {
           />
 
           <Pressable
-            style={[styles.exportButton, exporting ? styles.exportDisabled : null]}
+            style={[
+              styles.exportButton,
+              { bottom: 16 + insets.bottom },
+              exporting ? styles.exportDisabled : null,
+            ]}
             onPress={exportCsv}
             disabled={exporting || report.rows.length === 0}
           >
             {exporting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.onAccent} />
             ) : (
               <Text style={styles.exportLabel}>⬇️  Exportar CSV</Text>
             )}
@@ -187,7 +202,7 @@ export function ReportScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f7' },
+  container: { flex: 1, backgroundColor: colors.bg },
   loading: { marginTop: 48 },
   monthSelector: {
     flexDirection: 'row',
@@ -195,24 +210,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
   },
-  monthArrow: { fontSize: 26, color: '#1a73e8', paddingHorizontal: 20 },
-  monthLabel: { fontSize: 16, fontWeight: '600', minWidth: 90, textAlign: 'center' },
+  monthArrow: { fontSize: 26, color: colors.accent, paddingHorizontal: 20 },
+  monthLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    minWidth: 90,
+    textAlign: 'center',
+    color: colors.text,
+  },
   chips: { flexGrow: 0 },
-  chipsContent: { paddingHorizontal: 12, gap: 6 },
+  chipsContent: { paddingHorizontal: 12 },
   chip: {
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#e8eaed',
+    backgroundColor: colors.chip,
     marginRight: 6,
   },
-  chipActive: { backgroundColor: '#1a73e8' },
-  chipLabel: { fontSize: 13, color: '#444' },
-  chipLabelActive: { color: '#fff', fontWeight: '600' },
+  chipActive: { backgroundColor: colors.accent },
+  chipLabel: { fontSize: 13, color: colors.textMuted },
+  chipLabelActive: { color: colors.onAccent, fontWeight: '700' },
   body: { flex: 1 },
   totalsCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
     padding: 14,
     margin: 16,
     marginBottom: 8,
@@ -222,14 +243,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginVertical: 2,
   },
-  totalsLabel: { color: '#666', fontSize: 14 },
-  totalsValue: { fontSize: 14, fontWeight: '600' },
-  totalsLabelStrong: { fontSize: 15, fontWeight: '700' },
-  totalsValueStrong: { fontSize: 15, fontWeight: '700' },
-  list: { paddingHorizontal: 16, paddingBottom: 80 },
+  totalsLabel: { color: colors.textMuted, fontSize: 14 },
+  totalsValue: { fontSize: 14, fontWeight: '600', color: colors.text },
+  totalsLabelStrong: { fontSize: 15, fontWeight: '700', color: colors.text },
+  totalsValueStrong: { fontSize: 15, fontWeight: '700', color: colors.accent },
+  list: { paddingHorizontal: 16 },
   row: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
     padding: 12,
     marginBottom: 8,
     flexDirection: 'row',
@@ -237,20 +258,19 @@ const styles = StyleSheet.create({
   },
   rowLeft: { flex: 1, marginRight: 8 },
   rowRight: { alignItems: 'flex-end' },
-  rowSupplier: { fontSize: 15, fontWeight: '600' },
-  rowSub: { fontSize: 12, color: '#888', marginTop: 2 },
-  rowTotal: { fontSize: 15, fontWeight: '700' },
-  empty: { textAlign: 'center', color: '#888', marginTop: 32 },
+  rowSupplier: { fontSize: 15, fontWeight: '600', color: colors.text },
+  rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  rowTotal: { fontSize: 15, fontWeight: '700', color: colors.text },
+  empty: { textAlign: 'center', color: colors.textMuted, marginTop: 32 },
   exportButton: {
     position: 'absolute',
-    bottom: 16,
     left: 16,
     right: 16,
-    backgroundColor: '#188038',
-    borderRadius: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radius.lg,
     paddingVertical: 14,
     alignItems: 'center',
   },
   exportDisabled: { opacity: 0.6 },
-  exportLabel: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  exportLabel: { color: colors.onAccent, fontSize: 16, fontWeight: '700' },
 });
