@@ -1,6 +1,6 @@
 # Faturas — Gestão de Despesas
 
-App mobile que fotografa uma fatura, extrai os itens com IA, permite revisão manual e organiza tudo: fornecedores automáticos, dashboard com estatísticas e insights, relatórios com IVA e export CSV (ver `spec.txt` e `docs/`).
+App mobile que fotografa uma fatura, extrai os itens com IA, permite revisão manual e organiza tudo: fornecedores automáticos, dashboard com estatísticas e insights, relatórios com IVA, export CSV e **divisão de contas com amigos** via link partilhável (ver `spec.txt` e `docs/`).
 
 ## Estrutura
 
@@ -64,6 +64,9 @@ npm run test:e2e  # integração (upload → extração → revisão)
 - `GET /suppliers` · `GET /suppliers/:id` — fornecedores com agregados
 - `GET /stats/summary?month=YYYY-MM` — dashboard (totais, categorias, dias, top fornecedores, insights)
 - `GET /reports/expenses?month=&category=&supplier_id=` — relatório IVA (`.csv` para exportar)
+- `POST /receipts/:id/split-sessions` — criar sessão de divisão de conta → link partilhável
+- `GET /s/:token` — página web pública onde os amigos escolhem os itens (sem instalar app)
+- `GET /split-sessions/:token` · `POST .../participants` · `PUT .../participants/:id/claims` · `GET .../summary` · `POST .../close`
 
 ## Regras críticas (da especificação)
 
