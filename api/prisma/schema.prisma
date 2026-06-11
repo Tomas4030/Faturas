@@ -48,8 +48,52 @@ model ReceiptTax {
   @@map("receipt_taxes")
 }
 
+enum SplitSessionStatus {
+  open
+  closed
+}
+
+model SplitSession {
+  id          String             @id @default(cuid())
+  receiptId   String             @map("receipt_id")
+  receipt     Receipt            @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  publicToken String             @unique @map("public_token")
+  status      SplitSessionStatus @default(open)
+  expiresAt   DateTime           @map("expires_at")
+  participants Participant[]
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@map("split_sessions")
+}
+
+model Participant {
+  id             String                 @id @default(cuid())
+  splitSessionId String                 @map("split_session_id")
+  splitSession   SplitSession           @relation(fields: [splitSessionId], references: [id], onDelete: Cascade)
+  displayName    String                 @map("display_name")
+  claims         ParticipantItemClaim[]
+  createdAt      DateTime               @default(now()) @map("created_at")
+
+  @@map("participants")
+}
+
+model ParticipantItemClaim {
+  id              String      @id @default(cuid())
+  participantId   String      @map("participant_id")
+  participant     Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  receiptItemId   String      @map("receipt_item_id")
+  receiptItem     ReceiptItem @relation(fields: [receiptItemId], references: [id], onDelete: Cascade)
+  quantityClaimed Decimal     @map("quantity_claimed") @db.Decimal(10, 3)
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@unique([participantId, receiptItemId])
+  @@map("participant_item_claims")
+}
+
 model Receipt {
   id              String        @id @default(cuid())
+  splitSessions   SplitSession[]
   supplierId      String?       @map("supplier_id")
   supplier        Supplier?     @relation(fields: [supplierId], references: [id])
   category        String?
@@ -90,6 +134,7 @@ model ReceiptItem {
   confidence     Float?
   position       Int
   suspect        Boolean  @default(false)
+  claims         ParticipantItemClaim[]
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
