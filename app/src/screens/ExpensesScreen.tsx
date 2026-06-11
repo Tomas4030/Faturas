@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
@@ -11,7 +10,6 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { categoryLabel, formatCents, listReceipts, ReceiptDto } from '../api';
-import { useScanReceipt } from '../hooks/useScanReceipt';
 import { colors, radius } from '../theme';
 import type { RootStackParamList } from '../navigation';
 
@@ -28,7 +26,6 @@ export function ExpensesScreen() {
   const insets = useSafeAreaInsets();
   const [receipts, setReceipts] = useState<ReceiptDto[]>([]);
   const [loading, setLoading] = useState(false);
-  const { scan, uploading } = useScanReceipt();
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -97,7 +94,7 @@ export function ExpensesScreen() {
         onRefresh={refresh}
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: 96 + insets.bottom },
+          { paddingBottom: 24 + insets.bottom },
         ]}
         ListEmptyComponent={
           <Text style={styles.empty}>
@@ -105,21 +102,6 @@ export function ExpensesScreen() {
           </Text>
         }
       />
-      <Pressable
-        style={[
-          styles.scanButton,
-          { bottom: 16 + insets.bottom },
-          uploading ? styles.scanDisabled : null,
-        ]}
-        onPress={scan}
-        disabled={uploading}
-      >
-        {uploading ? (
-          <ActivityIndicator color={colors.onAccent} />
-        ) : (
-          <Text style={styles.scanLabel}>📷  Digitalizar fatura</Text>
-        )}
-      </Pressable>
     </View>
   );
 }
@@ -156,15 +138,4 @@ const styles = StyleSheet.create({
   cardStatus: { marginTop: 4, fontSize: 13, color: colors.success },
   statusFailed: { color: colors.danger },
   statusReview: { color: colors.warning },
-  scanButton: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    backgroundColor: colors.accent,
-    borderRadius: radius.lg,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  scanDisabled: { opacity: 0.6 },
-  scanLabel: { color: colors.onAccent, fontSize: 17, fontWeight: '700' },
 });

@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as NavigationBar from 'expo-navigation-bar';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -73,6 +76,14 @@ function Tabs() {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      void NavigationBar.setBackgroundColorAsync('#00000000');
+      void NavigationBar.setVisibilityAsync('hidden');
+      void NavigationBar.setBehaviorAsync('overlay-swipe');
+    }
+  }, []);
+
   return (
     <NavigationContainer theme={navTheme}>
       <StatusBar style="light" />

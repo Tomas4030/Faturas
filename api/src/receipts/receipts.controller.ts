@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -66,5 +67,10 @@ export class ReceiptsController {
   @Patch(':id')
   updateReceipt(@Param('id') id: string, @Body() body: unknown) {
     return this.receipts.updateReceipt(id, body);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.receipts.remove(id);
   }
 }

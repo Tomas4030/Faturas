@@ -61,7 +61,21 @@ export function postprocess(raw: unknown): PostprocessResult {
   const data = parsed.data;
   const warnings: string[] = [...(data.warnings ?? [])];
 
-  const items: ProcessedItem[] = data.items.map((item, index) => {
+  // Linhas de desconto não são itens: somam ao discount da fatura.
+  const DISCOUNT_PATTERN = /desconto|discount|rebate|poupan[çc]a/i;
+  let lineDiscountCents = 0;
+  const itemLines = data.items.filter((item) => {
+    const negative = (item.total ?? 0) < 0 || (item.unit_price ?? 0) < 0;
+    const named = DISCOUNT_PATTERN.test(item.description);
+    if (negative || named) {
+      const amount = item.total ?? item.unit_price ?? 0;
+      lineDiscountCents += Math.abs(eurosToCents(amount));
+      return false;
+    }
+    return true;
+  });
+
+  const items: ProcessedItem[] = itemLines.map((item, index) => {
     const quantity = item.quantity ?? 1;
     const unitPriceCents = toCentsOrNull(item.unit_price);
     const totalCents = toCentsOrNull(item.total);
@@ -113,7 +127,8 @@ export function postprocess(raw: unknown): PostprocessResult {
   });
 
   const taxCents = toCentsOrNull(data.totals?.tax) ?? 0;
-  const discountCents = toCentsOrNull(data.totals?.discount) ?? 0;
+  const discountCents =
+    (toCentsOrNull(data.totals?.discount) ?? 0) + lineDiscountCents;
   const tipCents = toCentsOrNull(data.totals?.tip) ?? 0;
   const grandTotalCents = toCentsOrNull(data.totals?.grand_total);
   const itemTotals = items.map((i) => i.totalCents);

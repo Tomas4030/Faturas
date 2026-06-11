@@ -2,6 +2,9 @@ export const EXTRACTION_PROMPT = `Analisa esta fatura portuguesa. Extrai os dado
 
 Regras obrigatórias:
 - Não inventes valores. Se não tiveres a certeza de um valor, usa null.
+- Em merchant.name usa o nome comercial curto do estabelecimento (ex.: "FNAC",
+  "Continente"), nunca a denominação social completa ("... Sociedade Unipessoal, Lda").
+- Descontos NÃO são itens: põe-nos em totals.discount (valor positivo).
 - Cada item deve ter descrição, quantidade, preço unitário e total.
 - Confirma se a soma dos itens corresponde ao total da fatura.
 - Devolve warnings (em português) quando algo não bater certo.

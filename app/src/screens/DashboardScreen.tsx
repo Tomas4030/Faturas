@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,7 +16,6 @@ import {
   getStatsSummary,
   StatsSummaryDto,
 } from '../api';
-import { useScanReceipt } from '../hooks/useScanReceipt';
 import { colors, radius } from '../theme';
 import type { RootStackParamList } from '../navigation';
 
@@ -58,7 +57,6 @@ export function DashboardScreen() {
   const [month, setMonth] = useState(currentMonth());
   const [stats, setStats] = useState<StatsSummaryDto | null>(null);
   const [loading, setLoading] = useState(false);
-  const { scan, uploading } = useScanReceipt();
 
   const load = useCallback((m: string) => {
     setLoading(true);
@@ -67,6 +65,11 @@ export function DashboardScreen() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // Load immediately on mount and when month changes
+  useEffect(() => {
+    load(month);
+  }, [load, month]);
 
   useFocusEffect(
     useCallback(() => {
@@ -92,15 +95,23 @@ export function DashboardScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: 96 + insets.bottom },
+          { paddingBottom: 24 + insets.bottom },
         ]}
       >
         <View style={styles.monthSelector}>
-          <Pressable hitSlop={12} onPress={() => setMonth(shiftMonth(month, -1))}>
+          <Pressable
+            hitSlop={12}
+            onPress={() => setMonth(shiftMonth(month, -1))}
+            style={styles.arrowBtn}
+          >
             <Text style={styles.monthArrow}>‹</Text>
           </Pressable>
           <Text style={styles.monthLabel}>{monthLabel(month)}</Text>
-          <Pressable hitSlop={12} onPress={() => setMonth(shiftMonth(month, 1))}>
+          <Pressable
+            hitSlop={12}
+            onPress={() => setMonth(shiftMonth(month, 1))}
+            style={styles.arrowBtn}
+          >
             <Text style={styles.monthArrow}>›</Text>
           </Pressable>
         </View>
@@ -218,22 +229,6 @@ export function DashboardScreen() {
           </View>
         )}
       </ScrollView>
-
-      <Pressable
-        style={[
-          styles.scanButton,
-          { bottom: 16 + insets.bottom },
-          uploading ? styles.scanDisabled : null,
-        ]}
-        onPress={scan}
-        disabled={uploading}
-      >
-        {uploading ? (
-          <ActivityIndicator color={colors.onAccent} />
-        ) : (
-          <Text style={styles.scanLabel}>📷  Digitalizar fatura</Text>
-        )}
-      </Pressable>
     </View>
   );
 }
@@ -248,13 +243,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  monthArrow: { fontSize: 28, color: colors.accent, paddingHorizontal: 20 },
+  arrowBtn: { padding: 8 },
+  monthArrow: { fontSize: 24, color: colors.accent, lineHeight: 28 },
   monthLabel: {
     fontSize: 17,
     fontWeight: '600',
-    minWidth: 150,
+    minWidth: 140,
     textAlign: 'center',
     color: colors.text,
+    lineHeight: 28,
+    marginHorizontal: 12,
   },
   totalCard: {
     backgroundColor: colors.accent,
@@ -333,15 +331,4 @@ const styles = StyleSheet.create({
   supplierTotal: { fontSize: 15, fontWeight: '600', color: colors.text },
   reportButton: { alignItems: 'center', paddingVertical: 16 },
   reportLabel: { color: colors.accent, fontSize: 16, fontWeight: '600' },
-  scanButton: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    backgroundColor: colors.accent,
-    borderRadius: radius.lg,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  scanDisabled: { opacity: 0.6 },
-  scanLabel: { color: colors.onAccent, fontSize: 17, fontWeight: '700' },
 });

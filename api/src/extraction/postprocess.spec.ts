@@ -112,6 +112,66 @@ describe('postprocess', () => {
     );
   });
 
+  it('move linhas de desconto (total negativo) para discount_cents', () => {
+    const raw = {
+      ...validRaw,
+      items: [
+        {
+          description: 'Headphones',
+          quantity: 1,
+          unit_price: 99.99,
+          total: 99.99,
+          category: null,
+          confidence: 0.95,
+        },
+        {
+          description: 'DESCONTO 432538-SUGERE',
+          quantity: 1,
+          unit_price: -20,
+          total: -20,
+          category: null,
+          confidence: 0.9,
+        },
+      ],
+      totals: { subtotal: 79.99, tax: 0, discount: 0, tip: 0, grand_total: 79.99 },
+    };
+    const r = postprocess(raw);
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0].description).toBe('Headphones');
+    expect(r.receiptFields.discountCents).toBe(2000);
+    // 99,99 - 20,00 = 79,99 → totais batem, sem warnings
+    expect(r.warnings).toHaveLength(0);
+  });
+
+  it('linha com "desconto" no nome e total positivo também vira desconto', () => {
+    const raw = {
+      ...validRaw,
+      items: [
+        {
+          description: 'Produto X',
+          quantity: 1,
+          unit_price: 50,
+          total: 50,
+          category: null,
+          confidence: 0.95,
+        },
+        {
+          description: 'Desconto cliente',
+          quantity: 1,
+          unit_price: 5,
+          total: 5,
+          category: null,
+          confidence: 0.9,
+        },
+      ],
+      totals: { subtotal: 45, tax: 0, discount: 0, tip: 0, grand_total: 45 },
+    };
+    const r = postprocess(raw);
+    expect(r.items).toHaveLength(1);
+    expect(r.receiptFields.discountCents).toBe(500);
+    expect(r.warnings).toHaveLength(0);
+  });
+
   it('preserva warnings vindos da IA', () => {
     const raw = { ...validRaw, warnings: ['Total pouco legível na imagem.'] };
     const r = postprocess(raw);

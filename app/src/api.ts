@@ -244,6 +244,10 @@ export async function updateReceipt(
   return handle(res);
 }
 
+export async function deleteReceipt(id: string): Promise<void> {
+  await handle(await fetch(`${API_URL}/receipts/${id}`, { method: 'DELETE' }));
+}
+
 export interface SplitSummaryDto {
   token: string;
   status: 'open' | 'closed';

@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { readFile } from 'node:fs/promises';
+import { readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma.service';
 import { ExtractionService } from '../extraction/extraction.service';
@@ -128,6 +128,17 @@ export class ReceiptsService {
       take: 100,
     });
     return receipts.map(toReceiptDto);
+  }
+
+  async remove(id: string): Promise<{ deleted: true }> {
+    const receipt = await this.prisma.receipt.findUnique({ where: { id } });
+    if (!receipt) throw new NotFoundException('Fatura não encontrada');
+    // cascade apaga items, taxes, sessões e claims
+    await this.prisma.receipt.delete({ where: { id } });
+    await unlink(join(UPLOADS_DIR, receipt.imageStorageKey)).catch(() => {
+      // imagem já não existe — ignorar
+    });
+    return { deleted: true };
   }
 
   /** Corrige categoria e/ou nome do comerciante; memoriza a correção. */

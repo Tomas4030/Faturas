@@ -70,15 +70,31 @@ export function ReviewScreen({ navigation, route }: Props) {
     getReceipt(receiptId)
       .then((r) => {
         setReceipt(r);
-        setDrafts(
-          r.items.map((item) => ({
-            key: item.id,
-            description: item.description,
-            quantityText: String(item.quantity).replace('.', ','),
-            unitPriceText: centsToText(item.unit_price_cents),
-            suspect: item.suspect,
-          })),
-        );
+        // Group discount items with their parent item
+        const grouped: DraftItem[] = [];
+        for (const item of r.items) {
+          const isDiscount =
+            item.unit_price_cents < 0 ||
+            item.description.toUpperCase().includes('DESCONTO');
+          if (isDiscount && grouped.length > 0) {
+            const parent = grouped[grouped.length - 1];
+            const newTotal =
+              textToCents(parent.unitPriceText) + item.unit_price_cents;
+            grouped[grouped.length - 1] = {
+              ...parent,
+              unitPriceText: centsToText(newTotal),
+            };
+          } else {
+            grouped.push({
+              key: item.id,
+              description: item.description,
+              quantityText: String(item.quantity).replace('.', ','),
+              unitPriceText: centsToText(item.unit_price_cents),
+              suspect: item.suspect,
+            });
+          }
+        }
+        setDrafts(grouped);
       })
       .catch(() =>
         Alert.alert('Erro', 'Não foi possível carregar a fatura.', [
@@ -178,7 +194,7 @@ export function ReviewScreen({ navigation, route }: Props) {
           { paddingBottom: 120 + insets.bottom },
         ]}
       >
-        <Text style={styles.merchant}>
+        <Text style={styles.merchant} numberOfLines={1}>
           {receipt.merchant.name ?? 'Fatura sem nome'}
         </Text>
         <Text style={styles.date}>
@@ -190,7 +206,13 @@ export function ReviewScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           style={styles.categoryChips}
         >
-          {MACRO_CATEGORIES.map((c) => {
+          {[...MACRO_CATEGORIES]
+            .sort((a, b) => {
+              if (a === receipt.category) return -1;
+              if (b === receipt.category) return 1;
+              return 0;
+            })
+            .map((c) => {
             const active = receipt.category === c;
             return (
               <Pressable

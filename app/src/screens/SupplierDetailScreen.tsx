@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -11,6 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   categoryLabel,
+  deleteReceipt,
   formatCents,
   getSupplier,
   SupplierDetailDto,
@@ -24,15 +26,37 @@ export function SupplierDetailScreen({ navigation, route }: Props) {
   const { supplierId } = route.params;
   const [supplier, setSupplier] = useState<SupplierDetailDto | null>(null);
 
+  const loadSupplier = useCallback(() => {
+    getSupplier(supplierId)
+      .then((s) => {
+        setSupplier(s);
+        navigation.setOptions({ title: s.name });
+      })
+      .catch(() => {});
+  }, [navigation, supplierId]);
+
   useFocusEffect(
     useCallback(() => {
-      getSupplier(supplierId)
-        .then((s) => {
-          setSupplier(s);
-          navigation.setOptions({ title: s.name });
-        })
-        .catch(() => {});
-    }, [navigation, supplierId]),
+      loadSupplier();
+    }, [loadSupplier]),
+  );
+
+  const removeReceipt = useCallback(
+    (receiptId: string) => {
+      Alert.alert('Remover fatura', 'Tens a certeza?', [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: () => {
+            deleteReceipt(receiptId)
+              .then(loadSupplier)
+              .catch(() => Alert.alert('Erro', 'Não foi possível remover.'));
+          },
+        },
+      ]);
+    },
+    [loadSupplier],
   );
 
   if (supplier == null) {
@@ -61,13 +85,20 @@ export function SupplierDetailScreen({ navigation, route }: Props) {
             style={styles.row}
             onPress={() => navigation.navigate('Review', { receiptId: item.id })}
           >
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.rowDate}>{item.date}</Text>
               <Text style={styles.rowCategory}>
                 {categoryLabel(item.category)}
               </Text>
             </View>
             <Text style={styles.rowTotal}>{formatCents(item.total_cents)}</Text>
+            <Pressable
+              onPress={() => removeReceipt(item.id)}
+              hitSlop={8}
+              style={styles.deleteBtn}
+            >
+              <Text style={styles.deleteBtnLabel}>✕</Text>
+            </Pressable>
           </Pressable>
         )}
         ListEmptyComponent={
@@ -108,5 +139,7 @@ const styles = StyleSheet.create({
   rowDate: { fontSize: 15, fontWeight: '600', color: colors.text },
   rowCategory: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   rowTotal: { fontSize: 16, fontWeight: '700', color: colors.text },
+  deleteBtn: { marginLeft: 12, padding: 4 },
+  deleteBtnLabel: { color: colors.danger, fontSize: 16 },
   empty: { textAlign: 'center', color: colors.textMuted, marginTop: 32 },
 });
