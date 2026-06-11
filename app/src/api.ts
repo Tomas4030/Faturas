@@ -1,21 +1,80 @@
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-/**
- * URL da API. Por omissão deriva o IP do servidor Expo (a mesma máquina
- * onde corre a API NestJS). Para forçar outro endereço, define
- * expo.extra.apiUrl no app.json.
- */
+const TOKEN_KEY = 'auth_token';
+
 function resolveApiUrl(): string {
   const override = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)
     ?.apiUrl;
   if (override) return override;
-  const hostUri = Constants.expoConfig?.hostUri; // ex.: "192.168.1.176:8081"
+  const hostUri = Constants.expoConfig?.hostUri;
   const host = hostUri?.split(':')[0];
   return `http://${host ?? 'localhost'}:3000`;
 }
 
 export const API_URL = resolveApiUrl();
 
+// --- Token management ---
+let _token: string | null = null;
+
+export async function loadToken(): Promise<string | null> {
+  if (_token) return _token;
+  _token = await AsyncStorage.getItem(TOKEN_KEY);
+  return _token;
+}
+
+export async function setToken(token: string): Promise<void> {
+  _token = token;
+  await AsyncStorage.setItem(TOKEN_KEY, token);
+}
+
+export async function clearToken(): Promise<void> {
+  _token = null;
+  await AsyncStorage.removeItem(TOKEN_KEY);
+}
+
+export function getToken(): string | null {
+  return _token;
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await loadToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// --- Auth API ---
+export async function apiRegister(email: string, password: string, name?: string) {
+  const res = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name }),
+  });
+  return handle<{ access_token: string; user_id: string }>(res);
+}
+
+export async function apiLogin(email: string, password: string) {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  return handle<{ access_token: string; user_id: string }>(res);
+}
+
+export interface ProfileDto {
+  id: string;
+  email: string;
+  name: string | null;
+  plan: { name: string; priceCents: number; monthlyReceiptLimit: number } | null;
+  usage: { receiptsScanned: number; splitsCreated: number };
+}
+
+export async function getProfile(): Promise<ProfileDto> {
+  const headers = await authHeaders();
+  return handle(await fetch(`${API_URL}/auth/me`, { headers }));
+}
+
+// --- DTOs ---
 export interface ReceiptItemDto {
   id: string;
   description: string;
@@ -85,47 +144,6 @@ export interface EditableItem {
   category?: string | null;
 }
 
-async function handle<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`API ${res.status}: ${text || res.statusText}`);
-  }
-  return (await res.json()) as T;
-}
-
-export async function uploadReceipt(
-  imageUri: string,
-): Promise<{ receipt_id: string; status: string }> {
-  const form = new FormData();
-  const name = imageUri.split('/').pop() ?? 'fatura.jpg';
-  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : 'jpg';
-  const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-  // React Native aceita {uri, name, type} num FormData
-  form.append('image', { uri: imageUri, name, type: mime } as unknown as Blob);
-  const res = await fetch(`${API_URL}/receipts`, { method: 'POST', body: form });
-  return handle(res);
-}
-
-export async function getReceipt(id: string): Promise<ReceiptDto> {
-  return handle(await fetch(`${API_URL}/receipts/${id}`));
-}
-
-export async function listReceipts(): Promise<ReceiptDto[]> {
-  return handle(await fetch(`${API_URL}/receipts`));
-}
-
-export async function updateItems(
-  id: string,
-  items: EditableItem[],
-): Promise<ReceiptDto> {
-  const res = await fetch(`${API_URL}/receipts/${id}/items`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items }),
-  });
-  return handle(res);
-}
-
 export interface SupplierSummaryDto {
   id: string;
   name: string;
@@ -186,68 +204,6 @@ export interface ReportDto {
   };
 }
 
-export async function listSuppliers(): Promise<SupplierSummaryDto[]> {
-  return handle(await fetch(`${API_URL}/suppliers`));
-}
-
-export async function getSupplier(id: string): Promise<SupplierDetailDto> {
-  return handle(await fetch(`${API_URL}/suppliers/${id}`));
-}
-
-export async function getStatsSummary(
-  month?: string,
-): Promise<StatsSummaryDto> {
-  const qs = month ? `?month=${month}` : '';
-  return handle(await fetch(`${API_URL}/stats/summary${qs}`));
-}
-
-function reportQuery(filters: {
-  month?: string;
-  category?: string;
-  supplier_id?: string;
-}): string {
-  const params = new URLSearchParams();
-  if (filters.month) params.set('month', filters.month);
-  if (filters.category) params.set('category', filters.category);
-  if (filters.supplier_id) params.set('supplier_id', filters.supplier_id);
-  const qs = params.toString();
-  return qs ? `?${qs}` : '';
-}
-
-export async function getReport(filters: {
-  month?: string;
-  category?: string;
-  supplier_id?: string;
-}): Promise<ReportDto> {
-  return handle(
-    await fetch(`${API_URL}/reports/expenses${reportQuery(filters)}`),
-  );
-}
-
-export function reportCsvUrl(filters: {
-  month?: string;
-  category?: string;
-  supplier_id?: string;
-}): string {
-  return `${API_URL}/reports/expenses.csv${reportQuery(filters)}`;
-}
-
-export async function updateReceipt(
-  id: string,
-  body: { category?: MacroCategory; merchant_name?: string },
-): Promise<ReceiptDto> {
-  const res = await fetch(`${API_URL}/receipts/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return handle(res);
-}
-
-export async function deleteReceipt(id: string): Promise<void> {
-  await handle(await fetch(`${API_URL}/receipts/${id}`, { method: 'DELETE' }));
-}
-
 export interface SplitSummaryDto {
   token: string;
   status: 'open' | 'closed';
@@ -268,13 +224,128 @@ export interface SplitSummaryDto {
   warnings: string[];
 }
 
+// --- Helpers ---
+async function handle<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`API ${res.status}: ${text || res.statusText}`);
+  }
+  return (await res.json()) as T;
+}
+
+// --- Authenticated API calls ---
+export async function uploadReceipt(
+  imageUri: string,
+): Promise<{ receipt_id: string; status: string }> {
+  const headers = await authHeaders();
+  const form = new FormData();
+  const name = imageUri.split('/').pop() ?? 'fatura.jpg';
+  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : 'jpg';
+  const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+  form.append('image', { uri: imageUri, name, type: mime } as unknown as Blob);
+  const res = await fetch(`${API_URL}/receipts`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+  return handle(res);
+}
+
+export async function getReceipt(id: string): Promise<ReceiptDto> {
+  const headers = await authHeaders();
+  return handle(await fetch(`${API_URL}/receipts/${id}`, { headers }));
+}
+
+export async function listReceipts(): Promise<ReceiptDto[]> {
+  const headers = await authHeaders();
+  return handle(await fetch(`${API_URL}/receipts`, { headers }));
+}
+
+export async function updateItems(id: string, items: EditableItem[]): Promise<ReceiptDto> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_URL}/receipts/${id}/items`, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  return handle(res);
+}
+
+export async function updateReceipt(
+  id: string,
+  body: { category?: MacroCategory; merchant_name?: string },
+): Promise<ReceiptDto> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_URL}/receipts/${id}`, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handle(res);
+}
+
+export async function deleteReceipt(id: string): Promise<void> {
+  const headers = await authHeaders();
+  await handle(await fetch(`${API_URL}/receipts/${id}`, { method: 'DELETE', headers }));
+}
+
+export async function listSuppliers(): Promise<SupplierSummaryDto[]> {
+  const headers = await authHeaders();
+  return handle(await fetch(`${API_URL}/suppliers`, { headers }));
+}
+
+export async function getSupplier(id: string): Promise<SupplierDetailDto> {
+  const headers = await authHeaders();
+  return handle(await fetch(`${API_URL}/suppliers/${id}`, { headers }));
+}
+
+export async function getStatsSummary(month?: string): Promise<StatsSummaryDto> {
+  const headers = await authHeaders();
+  const qs = month ? `?month=${month}` : '';
+  return handle(await fetch(`${API_URL}/stats/summary${qs}`, { headers }));
+}
+
+export async function getReport(filters: {
+  month?: string;
+  category?: string;
+  supplier_id?: string;
+}): Promise<ReportDto> {
+  const headers = await authHeaders();
+  return handle(
+    await fetch(`${API_URL}/reports/expenses${reportQuery(filters)}`, { headers }),
+  );
+}
+
+function reportQuery(filters: {
+  month?: string;
+  category?: string;
+  supplier_id?: string;
+}): string {
+  const params = new URLSearchParams();
+  if (filters.month) params.set('month', filters.month);
+  if (filters.category) params.set('category', filters.category);
+  if (filters.supplier_id) params.set('supplier_id', filters.supplier_id);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export function reportCsvUrl(filters: {
+  month?: string;
+  category?: string;
+  supplier_id?: string;
+}): string {
+  return `${API_URL}/reports/expenses.csv${reportQuery(filters)}`;
+}
+
 export async function createSplitSession(receiptId: string): Promise<{
   split_session_id: string;
   public_token: string;
   share_url: string;
 }> {
+  const headers = await authHeaders();
   const res = await fetch(`${API_URL}/receipts/${receiptId}/split-sessions`, {
     method: 'POST',
+    headers,
   });
   const data = await handle<{
     split_session_id: string;
@@ -289,8 +360,9 @@ export async function getSplitSummary(token: string): Promise<SplitSummaryDto> {
 }
 
 export async function closeSplitSession(token: string): Promise<void> {
+  const headers = await authHeaders();
   await handle(
-    await fetch(`${API_URL}/split-sessions/${token}/close`, { method: 'POST' }),
+    await fetch(`${API_URL}/split-sessions/${token}/close`, { method: 'POST', headers }),
   );
 }
 

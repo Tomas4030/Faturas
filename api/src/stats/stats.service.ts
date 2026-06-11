@@ -9,7 +9,7 @@ const COUNTED_STATUSES = ['ready', 'needs_review'] as const;
 export class StatsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async summary(month?: string) {
+  async summary(month?: string, userId?: string) {
     const now = new Date();
     const monthStr =
       month ??
@@ -33,6 +33,7 @@ export class StatsService {
 
     const receipts = await this.prisma.receipt.findMany({
       where: {
+        ...(userId ? { userId } : {}),
         status: { in: COUNTED_STATUSES as unknown as any },
         ...dateFilter(start, end),
       },
@@ -47,6 +48,7 @@ export class StatsService {
 
     const previous = await this.prisma.receipt.aggregate({
       where: {
+        ...(userId ? { userId } : {}),
         status: { in: COUNTED_STATUSES as unknown as any },
         ...dateFilter(prevStart, start),
       },

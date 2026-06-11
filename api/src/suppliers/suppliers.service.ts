@@ -92,11 +92,12 @@ export class SuppliersService {
     }
   }
 
-  async findAll() {
+  async findAll(userId?: string) {
     const suppliers = await this.prisma.supplier.findMany({
+      where: { receipts: { some: { ...(userId ? { userId } : {}) } } },
       include: {
         receipts: {
-          where: { status: { in: ['ready', 'needs_review'] } },
+          where: { status: { in: ['ready', 'needs_review'] }, ...(userId ? { userId } : {}) },
           select: { totalCents: true, createdAt: true },
         },
       },
@@ -121,11 +122,12 @@ export class SuppliersService {
       .sort((a, b) => b.total_cents - a.total_cents);
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id },
       include: {
         receipts: {
+          where: userId ? { userId } : {},
           orderBy: { createdAt: 'desc' },
           select: {
             id: true,

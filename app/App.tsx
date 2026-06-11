@@ -1,11 +1,14 @@
-import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { loadToken } from './src/api';
+import { LoginScreen } from './src/screens/LoginScreen';
+import { RegisterScreen } from './src/screens/RegisterScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { ExpensesScreen } from './src/screens/ExpensesScreen';
 import { SuppliersScreen } from './src/screens/SuppliersScreen';
@@ -76,18 +79,34 @@ function Tabs() {
 }
 
 export default function App() {
+  const [ready, setReady] = useState(false);
+  const [hasToken, setHasToken] = useState(false);
+
   useEffect(() => {
     if (Platform.OS === 'android') {
       void NavigationBar.setBackgroundColorAsync('#00000000');
       void NavigationBar.setVisibilityAsync('hidden');
       void NavigationBar.setBehaviorAsync('overlay-swipe');
     }
+    loadToken().then((t) => {
+      setHasToken(!!t);
+      setReady(true);
+    });
   }, []);
+
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer theme={navTheme}>
       <StatusBar style="light" />
       <Stack.Navigator
+        initialRouteName={hasToken ? 'Tabs' : 'Login'}
         screenOptions={{
           headerStyle: { backgroundColor: colors.bg },
           headerTintColor: colors.text,
@@ -95,6 +114,16 @@ export default function App() {
           headerShadowVisible: false,
         }}
       >
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+          options={{ title: 'Criar conta' }}
+        />
         <Stack.Screen
           name="Tabs"
           component={Tabs}

@@ -13,8 +13,9 @@ export interface ReportFilters {
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async expenses(filters: ReportFilters) {
+  async expenses(filters: ReportFilters, userId?: string) {
     const where: Record<string, unknown> = {
+      ...(userId ? { userId } : {}),
       status: { in: ['ready', 'needs_review'] },
     };
     if (filters.month) {
@@ -72,8 +73,8 @@ export class ReportsService {
     };
   }
 
-  async expensesCsv(filters: ReportFilters): Promise<string> {
-    const report = await this.expenses(filters);
+  async expensesCsv(filters: ReportFilters, userId?: string): Promise<string> {
+    const report = await this.expenses(filters, userId);
     return toCsv(
       [
         'Data',

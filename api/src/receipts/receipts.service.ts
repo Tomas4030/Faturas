@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -30,12 +31,48 @@ export class ReceiptsService {
     private readonly suppliers: SuppliersService,
   ) {}
 
-  async create(file: Express.Multer.File): Promise<{
-    receipt_id: string;
-    status: string;
-  }> {
+  private async checkUsageLimit(userId: string): Promise<void> {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { userId },
+      include: { plan: true },
+    });
+    if (!sub) return; // no plan = no limit (shouldn't happen)
+
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const usage = await this.prisma.usageCounter.findUnique({
+      where: { userId_periodStart: { userId, periodStart } },
+    });
+
+    const used = usage?.receiptsScanned ?? 0;
+    if (used >= sub.plan.monthlyReceiptLimit) {
+      throw new ForbiddenException(
+        `Limite do plano ${sub.plan.name} atingido (${sub.plan.monthlyReceiptLimit} faturas/mês). Faz upgrade para continuar.`,
+      );
+    }
+  }
+
+  private async incrementUsage(userId: string): Promise<void> {
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    await this.prisma.usageCounter.upsert({
+      where: { userId_periodStart: { userId, periodStart } },
+      create: { userId, periodStart, periodEnd, receiptsScanned: 1 },
+      update: { receiptsScanned: { increment: 1 } },
+    });
+  }
+
+  async create(
+    file: Express.Multer.File,
+    userId: string,
+  ): Promise<{ receipt_id: string; status: string }> {
+    await this.checkUsageLimit(userId);
+
     const receipt = await this.prisma.receipt.create({
       data: {
+        userId,
         status: 'processing',
         imageStorageKey: file.filename,
         mimeType: file.mimetype,
@@ -43,8 +80,8 @@ export class ReceiptsService {
       },
     });
 
-    // Extração assíncrona in-process (Fase 0). O contrato HTTP mantém-se
-    // quando isto passar para uma fila (BullMQ) no MVP.
+    await this.incrementUsage(userId);
+
     void this.processReceipt(receipt.id).catch(async (error) => {
       this.logger.error(`Extração de ${receipt.id} falhou: ${String(error)}`);
       await this.prisma.receipt.update({
@@ -112,17 +149,18 @@ export class ReceiptsService {
     ]);
   }
 
-  async findOne(id: string): Promise<ReceiptDto> {
+  async findOne(id: string, userId: string): Promise<ReceiptDto> {
     const receipt = await this.prisma.receipt.findUnique({
-      where: { id },
+      where: { id, userId },
       include: { items: true, taxes: true },
     });
     if (!receipt) throw new NotFoundException('Fatura não encontrada');
     return toReceiptDto(receipt);
   }
 
-  async findAll(): Promise<ReceiptDto[]> {
+  async findAll(userId: string): Promise<ReceiptDto[]> {
     const receipts = await this.prisma.receipt.findMany({
+      where: { userId },
       include: { items: true, taxes: true },
       orderBy: { createdAt: 'desc' },
       take: 100,
@@ -130,24 +168,28 @@ export class ReceiptsService {
     return receipts.map(toReceiptDto);
   }
 
-  async remove(id: string): Promise<{ deleted: true }> {
-    const receipt = await this.prisma.receipt.findUnique({ where: { id } });
-    if (!receipt) throw new NotFoundException('Fatura não encontrada');
-    // cascade apaga items, taxes, sessões e claims
-    await this.prisma.receipt.delete({ where: { id } });
-    await unlink(join(UPLOADS_DIR, receipt.imageStorageKey)).catch(() => {
-      // imagem já não existe — ignorar
+  async remove(id: string, userId: string): Promise<{ deleted: true }> {
+    const receipt = await this.prisma.receipt.findUnique({
+      where: { id, userId },
     });
+    if (!receipt) throw new NotFoundException('Fatura não encontrada');
+    await this.prisma.receipt.delete({ where: { id } });
+    await unlink(join(UPLOADS_DIR, receipt.imageStorageKey)).catch(() => {});
     return { deleted: true };
   }
 
-  /** Corrige categoria e/ou nome do comerciante; memoriza a correção. */
-  async updateReceipt(id: string, body: unknown): Promise<ReceiptDto> {
+  async updateReceipt(
+    id: string,
+    body: unknown,
+    userId: string,
+  ): Promise<ReceiptDto> {
     const parsed = updateReceiptSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.flatten());
     }
-    const existing = await this.prisma.receipt.findUnique({ where: { id } });
+    const existing = await this.prisma.receipt.findUnique({
+      where: { id, userId },
+    });
     if (!existing) throw new NotFoundException('Fatura não encontrada');
 
     const merchantName =
@@ -178,15 +220,21 @@ export class ReceiptsService {
         category: parsed.data.category ?? existing.category,
       },
     });
-    return this.findOne(id);
+    return this.findOne(id, userId);
   }
 
-  async updateItems(id: string, body: unknown): Promise<ReceiptDto> {
+  async updateItems(
+    id: string,
+    body: unknown,
+    userId: string,
+  ): Promise<ReceiptDto> {
     const parsed = updateItemsSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.flatten());
     }
-    const existing = await this.prisma.receipt.findUnique({ where: { id } });
+    const existing = await this.prisma.receipt.findUnique({
+      where: { id, userId },
+    });
     if (!existing) throw new NotFoundException('Fatura não encontrada');
 
     const items = parsed.data.items;
@@ -226,8 +274,6 @@ export class ReceiptsService {
         data: {
           status: 'ready',
           subtotalCents,
-          // O utilizador é a autoridade final: o total passa a ser a soma revista
-          // se a fatura não tiver total extraído.
           totalCents: existing.totalCents ?? subtotalCents,
           warnings,
           items: {
@@ -245,6 +291,6 @@ export class ReceiptsService {
       }),
     ]);
 
-    return this.findOne(id);
+    return this.findOne(id, userId);
   }
 }

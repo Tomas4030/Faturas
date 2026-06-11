@@ -1,0 +1,102 @@
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { apiLogin, setToken } from '../api';
+import { colors, radius } from '../theme';
+import type { RootStackParamList } from '../navigation';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
+
+export function LoginScreen({ navigation }: Props) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!email || !password) return;
+    setLoading(true);
+    try {
+      const res = await apiLogin(email.trim().toLowerCase(), password);
+      await setToken(res.access_token);
+      navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
+    } catch (e: any) {
+      Alert.alert('Erro', e.message?.includes('401') ? 'Email ou password incorretos' : 'Erro ao entrar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={styles.inner}>
+        <Text style={styles.title}>Entrar</Text>
+
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor={colors.textMuted}
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor={colors.textMuted}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
+
+        <Pressable style={styles.button} onPress={submit} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color={colors.onAccent} />
+          ) : (
+            <Text style={styles.buttonText}>Entrar</Text>
+          )}
+        </Pressable>
+
+        <Pressable onPress={() => navigation.navigate('Register')}>
+          <Text style={styles.link}>Não tens conta? Criar conta</Text>
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center' },
+  inner: { padding: 24 },
+  title: { fontSize: 28, fontWeight: '800', color: colors.text, marginBottom: 24, textAlign: 'center' },
+  input: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: 14,
+    fontSize: 16,
+    color: colors.text,
+    marginBottom: 12,
+  },
+  button: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.lg,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  buttonText: { color: colors.onAccent, fontSize: 17, fontWeight: '700' },
+  link: { color: colors.accent, textAlign: 'center', marginTop: 16, fontSize: 15 },
+});

@@ -1,4 +1,6 @@
 export type RootStackParamList = {
+  Login: undefined;
+  Register: undefined;
   Tabs: undefined;
   Processing: { receiptId: string };
   Review: { receiptId: string };

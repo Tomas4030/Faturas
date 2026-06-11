@@ -13,7 +13,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   categoryLabel,
   formatCents,
+  getProfile,
   getStatsSummary,
+  ProfileDto,
   StatsSummaryDto,
 } from '../api';
 import { colors, radius } from '../theme';
@@ -57,6 +59,7 @@ export function DashboardScreen() {
   const [month, setMonth] = useState(currentMonth());
   const [stats, setStats] = useState<StatsSummaryDto | null>(null);
   const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState<ProfileDto | null>(null);
 
   const load = useCallback((m: string) => {
     setLoading(true);
@@ -69,6 +72,7 @@ export function DashboardScreen() {
   // Load immediately on mount and when month changes
   useEffect(() => {
     load(month);
+    getProfile().then(setProfile).catch(() => {});
   }, [load, month]);
 
   useFocusEffect(
@@ -137,6 +141,25 @@ export function DashboardScreen() {
                   : ''}
               </Text>
             </View>
+
+            {profile?.plan ? (
+              <View style={styles.usageCard}>
+                <Text style={styles.usagePlan}>Plano {profile.plan.name}</Text>
+                <Text style={styles.usageText}>
+                  {profile.usage.receiptsScanned} / {profile.plan.monthlyReceiptLimit} faturas este mês
+                </Text>
+                <View style={styles.usageBarBg}>
+                  <View
+                    style={[
+                      styles.usageBarFill,
+                      {
+                        width: `${Math.min(100, (profile.usage.receiptsScanned / profile.plan.monthlyReceiptLimit) * 100)}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+            ) : null}
 
             {stats.insights.map((insight, i) => (
               <View key={i} style={styles.insightCard}>
@@ -331,4 +354,19 @@ const styles = StyleSheet.create({
   supplierTotal: { fontSize: 15, fontWeight: '600', color: colors.text },
   reportButton: { alignItems: 'center', paddingVertical: 16 },
   reportLabel: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  usageCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: 12,
+    marginBottom: 12,
+  },
+  usagePlan: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
+  usageText: { fontSize: 14, color: colors.text, fontWeight: '600', marginBottom: 8 },
+  usageBarBg: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: 'hidden' as const,
+  },
+  usageBarFill: { height: 6, backgroundColor: colors.accent, borderRadius: 3 },
 });
