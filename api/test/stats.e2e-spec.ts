@@ -4,6 +4,7 @@ import request from 'supertest';
 import { mkdir } from 'node:fs/promises';
 import { AppModule } from '../src/app.module';
 import { UPLOADS_DIR } from '../src/receipts/receipts.service';
+import { bearer, registerTestUser } from './auth-helper';
 
 const PNG_1PX = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -14,6 +15,7 @@ jest.setTimeout(30000);
 
 describe('Stats (e2e, extração mock)', () => {
   let app: INestApplication;
+  let token: string;
 
   beforeAll(async () => {
     process.env.EXTRACTION_MODE = 'mock';
@@ -23,17 +25,19 @@ describe('Stats (e2e, extração mock)', () => {
     }).compile();
     app = moduleRef.createNestApplication();
     await app.init();
+    token = (await registerTestUser(app, 'stats')).token;
 
     // garante pelo menos uma fatura no mês da fatura mock (2026-06)
     const upload = await request(app.getHttpServer())
       .post('/receipts')
+      .set('Authorization', bearer(token))
       .attach('image', PNG_1PX, { filename: 'f.png', contentType: 'image/png' })
       .expect(201);
     for (let i = 0; i < 20; i++) {
       await new Promise((r) => setTimeout(r, 500));
       const res = await request(app.getHttpServer()).get(
         `/receipts/${upload.body.receipt_id}`,
-      );
+      ).set('Authorization', bearer(token));
       if (res.body.status !== 'processing') break;
     }
   });
@@ -45,6 +49,7 @@ describe('Stats (e2e, extração mock)', () => {
   it('GET /stats/summary devolve agregados coerentes', async () => {
     const res = await request(app.getHttpServer())
       .get('/stats/summary?month=2026-06')
+      .set('Authorization', bearer(token))
       .expect(200);
     const body = res.body;
 
@@ -74,6 +79,7 @@ describe('Stats (e2e, extração mock)', () => {
   it('mês sem dados devolve zeros', async () => {
     const res = await request(app.getHttpServer())
       .get('/stats/summary?month=2020-01')
+      .set('Authorization', bearer(token))
       .expect(200);
     expect(res.body.total_cents).toBe(0);
     expect(res.body.receipt_count).toBe(0);
@@ -83,6 +89,7 @@ describe('Stats (e2e, extração mock)', () => {
   it('month inválido devolve 400', async () => {
     await request(app.getHttpServer())
       .get('/stats/summary?month=junho')
+      .set('Authorization', bearer(token))
       .expect(400);
   });
 });

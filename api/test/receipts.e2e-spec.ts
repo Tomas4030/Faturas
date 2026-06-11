@@ -4,6 +4,7 @@ import request from 'supertest';
 import { mkdir } from 'node:fs/promises';
 import { AppModule } from '../src/app.module';
 import { UPLOADS_DIR } from '../src/receipts/receipts.service';
+import { bearer, registerTestUser } from './auth-helper';
 
 // PNG 1x1 válido
 const PNG_1PX = Buffer.from(
@@ -15,6 +16,7 @@ jest.setTimeout(30000);
 
 describe('Receipts (e2e, extração mock)', () => {
   let app: INestApplication;
+  let token: string;
 
   beforeAll(async () => {
     process.env.EXTRACTION_MODE = 'mock';
@@ -24,6 +26,7 @@ describe('Receipts (e2e, extração mock)', () => {
     }).compile();
     app = moduleRef.createNestApplication();
     await app.init();
+    token = (await registerTestUser(app, 'receipts')).token;
   });
 
   afterAll(async () => {
@@ -34,6 +37,7 @@ describe('Receipts (e2e, extração mock)', () => {
     // 1. Upload
     const upload = await request(app.getHttpServer())
       .post('/receipts')
+      .set('Authorization', bearer(token))
       .attach('image', PNG_1PX, { filename: 'fatura.png', contentType: 'image/png' })
       .expect(201);
     expect(upload.body.status).toBe('processing');
@@ -45,6 +49,7 @@ describe('Receipts (e2e, extração mock)', () => {
       await new Promise((r) => setTimeout(r, 500));
       const res = await request(app.getHttpServer())
         .get(`/receipts/${id}`)
+        .set('Authorization', bearer(token))
         .expect(200);
       receipt = res.body;
       if (receipt.status !== 'processing') break;
@@ -59,6 +64,7 @@ describe('Receipts (e2e, extração mock)', () => {
     // mantém os valores corretos da fatura)
     const patch = await request(app.getHttpServer())
       .patch(`/receipts/${id}/items`)
+      .set('Authorization', bearer(token))
       .send({
         items: [
           { description: 'Menu Sushi', quantity: 2, unit_price_cents: 1850, total_cents: 3700 },
@@ -72,25 +78,38 @@ describe('Receipts (e2e, extração mock)', () => {
     expect(patch.body.warnings).toHaveLength(0);
 
     // 4. Aparece na listagem
-    const list = await request(app.getHttpServer()).get('/receipts').expect(200);
+    const list = await request(app.getHttpServer())
+      .get('/receipts')
+      .set('Authorization', bearer(token))
+      .expect(200);
     expect(list.body.some((r: any) => r.id === id)).toBe(true);
+
+    const filtered = await request(app.getHttpServer())
+      .get('/receipts?q=Sakura&month=2026-06&category=restaurante&status=ready&sort=total_desc')
+      .set('Authorization', bearer(token))
+      .expect(200);
+    expect(filtered.body.some((r: any) => r.id === id)).toBe(true);
   });
 
   it('PATCH com linha inconsistente devolve warning mas aceita (utilizador é autoridade)', async () => {
     const upload = await request(app.getHttpServer())
       .post('/receipts')
+      .set('Authorization', bearer(token))
       .attach('image', PNG_1PX, { filename: 'fatura.png', contentType: 'image/png' })
       .expect(201);
     const id = upload.body.receipt_id as string;
     // espera extração mock
     for (let i = 0; i < 20; i++) {
       await new Promise((r) => setTimeout(r, 500));
-      const res = await request(app.getHttpServer()).get(`/receipts/${id}`);
+      const res = await request(app.getHttpServer())
+        .get(`/receipts/${id}`)
+        .set('Authorization', bearer(token));
       if (res.body.status !== 'processing') break;
     }
 
     const patch = await request(app.getHttpServer())
       .patch(`/receipts/${id}/items`)
+      .set('Authorization', bearer(token))
       .send({
         items: [
           // 2 x 18.50 = 18.50 → inconsistente de propósito
@@ -105,15 +124,27 @@ describe('Receipts (e2e, extração mock)', () => {
   it('PATCH inválido (sem itens) devolve 400', async () => {
     const upload = await request(app.getHttpServer())
       .post('/receipts')
+      .set('Authorization', bearer(token))
       .attach('image', PNG_1PX, { filename: 'fatura.png', contentType: 'image/png' })
       .expect(201);
     await request(app.getHttpServer())
       .patch(`/receipts/${upload.body.receipt_id}/items`)
+      .set('Authorization', bearer(token))
       .send({ items: [] })
       .expect(400);
   });
 
   it('GET de fatura inexistente devolve 404', async () => {
-    await request(app.getHttpServer()).get('/receipts/nao-existe').expect(404);
+    await request(app.getHttpServer())
+      .get('/receipts/nao-existe')
+      .set('Authorization', bearer(token))
+      .expect(404);
+  });
+
+  it('GET /receipts com filtros inválidos devolve 400', async () => {
+    await request(app.getHttpServer())
+      .get('/receipts?month=junho')
+      .set('Authorization', bearer(token))
+      .expect(400);
   });
 });

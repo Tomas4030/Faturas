@@ -20,6 +20,8 @@ model User {
   passwordHash String         @map("password_hash")
   name         String?
   receipts     Receipt[]
+  suppliers    Supplier[]
+  categoryCorrections CategoryCorrection[]
   subscription Subscription?
   usageCounters UsageCounter[]
   recurringExpenses RecurringExpense[]
@@ -69,24 +71,31 @@ model UsageCounter {
 
 model Supplier {
   id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name           String
-  nif            String?   @unique
-  normalizedName String    @unique @map("normalized_name")
+  nif            String?
+  normalizedName String    @map("normalized_name")
   category       String?
   receipts       Receipt[]
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
+  @@unique([userId, nif])
+  @@unique([userId, normalizedName])
   @@map("suppliers")
 }
 
 model CategoryCorrection {
   id                     String   @id @default(cuid())
-  normalizedMerchantName String   @unique @map("normalized_merchant_name")
+  userId                 String   @map("user_id")
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  normalizedMerchantName String   @map("normalized_merchant_name")
   category               String
   createdAt              DateTime @default(now()) @map("created_at")
   updatedAt              DateTime @updatedAt @map("updated_at")
 
+  @@unique([userId, normalizedMerchantName])
   @@map("category_corrections")
 }
 

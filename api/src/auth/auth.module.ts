@@ -10,10 +10,16 @@ import { PrismaService } from '../prisma.service';
   imports: [
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        secret: cfg.get<string>('JWT_SECRET', 'dev-secret-change-me'),
-        signOptions: { expiresIn: '30d' },
-      }),
+      useFactory: (cfg: ConfigService) => {
+        const secret = cfg.get<string>('JWT_SECRET');
+        if (!secret) {
+          throw new Error('JWT_SECRET é obrigatório. Define-o no .env.');
+        }
+        return {
+          secret,
+          signOptions: { expiresIn: '30d' },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

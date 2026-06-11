@@ -19,17 +19,30 @@ async function main() {
 
     let supplier =
       (receipt.merchantNif
-        ? await prisma.supplier.findUnique({
-            where: { nif: receipt.merchantNif },
+        ? await prisma.supplier.findFirst({
+            where: { userId: receipt.userId, nif: receipt.merchantNif },
           })
         : null) ??
       (await prisma.supplier.findUnique({
-        where: { normalizedName: normalized },
+        where: {
+          userId_normalizedName: {
+            userId: receipt.userId,
+            normalizedName: normalized,
+          },
+        },
       }));
+
+    if (supplier && receipt.merchantNif && !supplier.nif) {
+      supplier = await prisma.supplier.update({
+        where: { id: supplier.id },
+        data: { nif: receipt.merchantNif },
+      });
+    }
 
     if (!supplier) {
       supplier = await prisma.supplier.create({
         data: {
+          userId: receipt.userId,
           name: name.trim(),
           nif: receipt.merchantNif,
           normalizedName: normalized,

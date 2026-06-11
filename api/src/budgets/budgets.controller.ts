@@ -1,6 +1,23 @@
-import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { z } from 'zod';
 import { JwtGuard } from '../auth/jwt.guard';
 import { PrismaService } from '../prisma.service';
+import { MACRO_CATEGORIES } from '../receipts/dto';
+
+const createBudgetSchema = z.object({
+  category: z.enum(MACRO_CATEGORIES),
+  monthly_limit_cents: z.number().int().positive().max(2_147_483_647),
+});
 
 @UseGuards(JwtGuard)
 @Controller('budgets')
@@ -45,12 +62,20 @@ export class BudgetsController {
   @Post()
   create(
     @Req() req: { userId: string },
-    @Body() body: { category: string; monthly_limit_cents: number },
+    @Body() body: unknown,
   ) {
+    const parsed = createBudgetSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     return this.prisma.budget.upsert({
-      where: { userId_category: { userId: req.userId, category: body.category } },
-      create: { userId: req.userId, category: body.category, monthlyLimitCents: body.monthly_limit_cents },
-      update: { monthlyLimitCents: body.monthly_limit_cents },
+      where: {
+        userId_category: { userId: req.userId, category: parsed.data.category },
+      },
+      create: {
+        userId: req.userId,
+        category: parsed.data.category,
+        monthlyLimitCents: parsed.data.monthly_limit_cents,
+      },
+      update: { monthlyLimitCents: parsed.data.monthly_limit_cents },
     });
   }
 

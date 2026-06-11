@@ -29,6 +29,9 @@ Configuração em `api/.env` (copiar de `.env.example`):
 
 | Variável | Descrição |
 |---|---|
+| `DATABASE_URL` | Ligação PostgreSQL usada pela API/Prisma |
+| `PORT` | Porta inicial da API; se ocupada tenta até 3019 |
+| `JWT_SECRET` | Segredo obrigatório para assinar/verificar tokens JWT |
 | `EXTRACTION_MODE` | `mock` (fatura de exemplo, sem custos) ou `real` |
 | `OPENAI_BASE_URL` | Endpoint OpenAI-compatible (Blackbox: `https://api.blackbox.ai/v1`) |
 | `OPENAI_API_KEY` | A tua chave |
@@ -58,15 +61,15 @@ npm run test:e2e  # integração (upload → extração → revisão)
 
 - `POST /receipts` — multipart `image` → `{ receipt_id, status: "processing" }`
 - `GET /receipts/:id` — estado + itens + totais + IVA + warnings
-- `GET /receipts` — lista
+- `GET /receipts?q=&month=&category=&status=&sort=&limit=` — lista com pesquisa, filtros e ordenação
 - `PATCH /receipts/:id/items` — itens revistos pelo utilizador → status `ready`
 - `PATCH /receipts/:id` — corrigir categoria/comerciante (a correção fica memorizada)
 - `GET /suppliers` · `GET /suppliers/:id` — fornecedores com agregados
 - `GET /stats/summary?month=YYYY-MM` — dashboard (totais, categorias, dias, top fornecedores, insights)
 - `GET /reports/expenses?month=&category=&supplier_id=` — relatório IVA (`.csv` para exportar)
-- `POST /receipts/:id/split-sessions` — criar sessão de divisão de conta → link partilhável
+- `POST /receipts/:id/split-sessions` — criar sessão de divisão de conta autenticada → link partilhável
 - `GET /s/:token` — página web pública onde os amigos escolhem os itens (sem instalar app)
-- `GET /split-sessions/:token` · `POST .../participants` · `PUT .../participants/:id/claims` · `GET .../summary` · `POST .../close`
+- `GET /split-sessions/:token` · `POST .../participants` · `PUT .../participants/:id/claims` · `GET .../summary` · `POST .../close` autenticado pelo dono
 
 ## Regras críticas (da especificação)
 

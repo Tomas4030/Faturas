@@ -28,9 +28,9 @@ const claimsSchema = z.object({
 export class SplitService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createForReceipt(receiptId: string) {
+  async createForReceipt(receiptId: string, userId: string) {
     const receipt = await this.prisma.receipt.findUnique({
-      where: { id: receiptId },
+      where: { id: receiptId, userId },
       include: { splitSessions: { where: { status: 'open' } } },
     });
     if (!receipt) throw new NotFoundException('Fatura não encontrada');
@@ -207,8 +207,11 @@ export class SplitService {
     };
   }
 
-  async close(token: string) {
+  async close(token: string, userId: string) {
     const session = await this.getSession(token);
+    if (session.receipt.userId !== userId) {
+      throw new NotFoundException('Sessão não encontrada');
+    }
     if (session.status === 'closed') return { status: 'closed' };
     await this.prisma.splitSession.update({
       where: { id: session.id },

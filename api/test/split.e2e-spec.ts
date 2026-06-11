@@ -4,6 +4,7 @@ import request from 'supertest';
 import { mkdir } from 'node:fs/promises';
 import { AppModule } from '../src/app.module';
 import { UPLOADS_DIR } from '../src/receipts/receipts.service';
+import { bearer, registerTestUser } from './auth-helper';
 
 const PNG_1PX = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -14,6 +15,7 @@ jest.setTimeout(30000);
 
 describe('Split sessions (e2e, extração mock)', () => {
   let app: INestApplication;
+  let authToken: string;
   let receiptId: string;
   let token: string;
 
@@ -25,9 +27,11 @@ describe('Split sessions (e2e, extração mock)', () => {
     }).compile();
     app = moduleRef.createNestApplication();
     await app.init();
+    authToken = (await registerTestUser(app, 'split')).token;
 
     const upload = await request(app.getHttpServer())
       .post('/receipts')
+      .set('Authorization', bearer(authToken))
       .attach('image', PNG_1PX, { filename: 'f.png', contentType: 'image/png' })
       .expect(201);
     receiptId = upload.body.receipt_id;
@@ -35,7 +39,7 @@ describe('Split sessions (e2e, extração mock)', () => {
       await new Promise((r) => setTimeout(r, 500));
       const res = await request(app.getHttpServer()).get(
         `/receipts/${receiptId}`,
-      );
+      ).set('Authorization', bearer(authToken));
       if (res.body.status !== 'processing') break;
     }
   });
@@ -47,6 +51,7 @@ describe('Split sessions (e2e, extração mock)', () => {
   it('cria sessão e devolve token forte', async () => {
     const res = await request(app.getHttpServer())
       .post(`/receipts/${receiptId}/split-sessions`)
+      .set('Authorization', bearer(authToken))
       .expect(201);
     token = res.body.public_token;
     expect(token).toMatch(/^spl_/);
@@ -57,8 +62,26 @@ describe('Split sessions (e2e, extração mock)', () => {
   it('reutiliza sessão aberta existente', async () => {
     const res = await request(app.getHttpServer())
       .post(`/receipts/${receiptId}/split-sessions`)
+      .set('Authorization', bearer(authToken))
       .expect(201);
     expect(res.body.public_token).toBe(token);
+  });
+
+  it('exige JWT para criar e fechar sessão', async () => {
+    await request(app.getHttpServer())
+      .post(`/receipts/${receiptId}/split-sessions`)
+      .expect(401);
+    await request(app.getHttpServer())
+      .post(`/split-sessions/${token}/close`)
+      .expect(401);
+  });
+
+  it('não deixa outro utilizador fechar a sessão', async () => {
+    const otherToken = (await registerTestUser(app, 'split-other')).token;
+    await request(app.getHttpServer())
+      .post(`/split-sessions/${token}/close`)
+      .set('Authorization', bearer(otherToken))
+      .expect(404);
   });
 
   it('serve a página pública', async () => {
@@ -129,6 +152,7 @@ describe('Split sessions (e2e, extração mock)', () => {
   it('fechar sessão bloqueia novas claims mas mantém o resumo', async () => {
     await request(app.getHttpServer())
       .post(`/split-sessions/${token}/close`)
+      .set('Authorization', bearer(authToken))
       .expect(201);
     await request(app.getHttpServer())
       .post(`/split-sessions/${token}/participants`)

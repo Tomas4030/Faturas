@@ -15,6 +15,7 @@ import * as Sharing from 'expo-sharing';
 import {
   categoryLabel,
   formatCents,
+  getAuthHeaders,
   getReport,
   MACRO_CATEGORIES,
   ReportDto,
@@ -53,14 +54,19 @@ export function ReportScreen() {
     setExporting(true);
     try {
       const target = `${FileSystem.cacheDirectory}despesas-${month}.csv`;
-      const { uri } = await FileSystem.downloadAsync(
+      const headers = await getAuthHeaders();
+      const result = await FileSystem.downloadAsync(
         reportCsvUrl({ month, category }),
         target,
+        { headers },
       );
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(`CSV export failed with ${result.status}`);
+      }
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: 'text/csv' });
+        await Sharing.shareAsync(result.uri, { mimeType: 'text/csv' });
       } else {
-        Alert.alert('Exportado', `Ficheiro guardado em: ${uri}`);
+        Alert.alert('Exportado', `Ficheiro guardado em: ${result.uri}`);
       }
     } catch {
       Alert.alert('Erro', 'Não foi possível exportar o CSV.');

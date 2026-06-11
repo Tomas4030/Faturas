@@ -12,6 +12,7 @@ export class SuppliersService {
    * Ordem de match: NIF → nome normalizado → criar.
    */
   async findOrCreateSupplier(args: {
+    userId: string;
     name: string;
     nif?: string | null;
   }): Promise<Supplier | null> {
@@ -19,14 +20,19 @@ export class SuppliersService {
     if (!normalized) return null;
 
     if (args.nif) {
-      const byNif = await this.prisma.supplier.findUnique({
-        where: { nif: args.nif },
+      const byNif = await this.prisma.supplier.findFirst({
+        where: { userId: args.userId, nif: args.nif },
       });
       if (byNif) return byNif;
     }
 
     const byName = await this.prisma.supplier.findUnique({
-      where: { normalizedName: normalized },
+      where: {
+        userId_normalizedName: {
+          userId: args.userId,
+          normalizedName: normalized,
+        },
+      },
     });
     if (byName) {
       if (args.nif && !byName.nif) {
@@ -41,6 +47,7 @@ export class SuppliersService {
 
     return this.prisma.supplier.create({
       data: {
+        userId: args.userId,
         name: args.name.trim(),
         nif: args.nif ?? null,
         normalizedName: normalized,
@@ -53,6 +60,7 @@ export class SuppliersService {
    * fornecedor → categoria sugerida pela IA → null.
    */
   async resolveCategory(args: {
+    userId: string;
     merchantName: string | null;
     supplier: Supplier | null;
     aiSuggestion: string | null;
@@ -61,7 +69,12 @@ export class SuppliersService {
       const normalized = normalizeName(args.merchantName);
       if (normalized) {
         const correction = await this.prisma.categoryCorrection.findUnique({
-          where: { normalizedMerchantName: normalized },
+          where: {
+            userId_normalizedMerchantName: {
+              userId: args.userId,
+              normalizedMerchantName: normalized,
+            },
+          },
         });
         if (correction) return correction.category;
       }
@@ -72,6 +85,7 @@ export class SuppliersService {
 
   /** Memoriza a correção de categoria do utilizador (spec §19). */
   async recordCategoryCorrection(
+    userId: string,
     merchantName: string,
     category: string,
     supplierId?: string | null,
@@ -79,14 +93,19 @@ export class SuppliersService {
     const normalized = normalizeName(merchantName);
     if (normalized) {
       await this.prisma.categoryCorrection.upsert({
-        where: { normalizedMerchantName: normalized },
-        create: { normalizedMerchantName: normalized, category },
+        where: {
+          userId_normalizedMerchantName: {
+            userId,
+            normalizedMerchantName: normalized,
+          },
+        },
+        create: { userId, normalizedMerchantName: normalized, category },
         update: { category },
       });
     }
     if (supplierId) {
-      await this.prisma.supplier.update({
-        where: { id: supplierId },
+      await this.prisma.supplier.updateMany({
+        where: { id: supplierId, userId },
         data: { category },
       });
     }
@@ -94,7 +113,10 @@ export class SuppliersService {
 
   async findAll(userId?: string) {
     const suppliers = await this.prisma.supplier.findMany({
-      where: { receipts: { some: { ...(userId ? { userId } : {}) } } },
+      where: {
+        ...(userId ? { userId } : {}),
+        receipts: { some: { ...(userId ? { userId } : {}) } },
+      },
       include: {
         receipts: {
           where: { status: { in: ['ready', 'needs_review'] }, ...(userId ? { userId } : {}) },
@@ -123,8 +145,8 @@ export class SuppliersService {
   }
 
   async findOne(id: string, userId?: string) {
-    const supplier = await this.prisma.supplier.findUnique({
-      where: { id },
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id, ...(userId ? { userId } : {}) },
       include: {
         receipts: {
           where: userId ? { userId } : {},
@@ -162,26 +184,42 @@ export class SuppliersService {
     };
   }
 
-  async rename(id: string, name: string) {
-    const supplier = await this.prisma.supplier.findUnique({ where: { id } });
+  async rename(id: string, name: string, userId: string) {
+    const normalizedName = normalizeName(name);
+    if (!normalizedName) throw new BadRequestException('Nome inválido');
+
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id, userId },
+    });
     if (!supplier) throw new NotFoundException('Fornecedor não encontrado');
+
+    const conflict = await this.prisma.supplier.findUnique({
+      where: { userId_normalizedName: { userId, normalizedName } },
+    });
+    if (conflict && conflict.id !== id) {
+      throw new BadRequestException('Já existe um fornecedor com esse nome');
+    }
+
     return this.prisma.supplier.update({
       where: { id },
-      data: { name: name.trim(), normalizedName: normalizeName(name) },
+      data: { name: name.trim(), normalizedName },
     });
   }
 
-  async merge(sourceId: string, targetId: string) {
+  async merge(sourceId: string, targetId: string, userId: string) {
+    if (!sourceId || !targetId) {
+      throw new BadRequestException('source e target são obrigatórios');
+    }
     if (sourceId === targetId)
       throw new BadRequestException('source e target não podem ser iguais');
     const [source, target] = await Promise.all([
-      this.prisma.supplier.findUnique({ where: { id: sourceId } }),
-      this.prisma.supplier.findUnique({ where: { id: targetId } }),
+      this.prisma.supplier.findFirst({ where: { id: sourceId, userId } }),
+      this.prisma.supplier.findFirst({ where: { id: targetId, userId } }),
     ]);
     if (!source || !target)
       throw new NotFoundException('Fornecedor não encontrado');
     await this.prisma.receipt.updateMany({
-      where: { supplierId: sourceId },
+      where: { supplierId: sourceId, userId },
       data: { supplierId: targetId },
     });
     await this.prisma.supplier.delete({ where: { id: sourceId } });

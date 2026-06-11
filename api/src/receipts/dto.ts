@@ -12,6 +12,26 @@ export const MACRO_CATEGORIES = [
   'outros',
 ] as const;
 
+export const RECEIPT_STATUSES = [
+  'processing',
+  'needs_review',
+  'ready',
+  'failed',
+] as const;
+
+export const listReceiptsSchema = z.object({
+  q: z.string().trim().min(1).max(80).optional(),
+  month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  category: z.enum(MACRO_CATEGORIES).optional(),
+  status: z.enum(RECEIPT_STATUSES).optional(),
+  sort: z
+    .enum(['date_desc', 'date_asc', 'total_desc', 'total_asc'])
+    .default('date_desc'),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+
+export type ListReceiptsFilters = z.infer<typeof listReceiptsSchema>;
+
 /** Body do PATCH /receipts/:id — correções de categoria/comerciante. */
 export const updateReceiptSchema = z
   .object({

@@ -57,7 +57,7 @@ export function getToken(): string | null {
   return _token;
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   const token = await loadToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
@@ -90,7 +90,7 @@ export interface ProfileDto {
 }
 
 export async function getProfile(): Promise<ProfileDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   return handle(await fetch(`${API_URL}/auth/me`, { headers }));
 }
 
@@ -141,7 +141,7 @@ export interface ReceiptDto {
   failure_reason: string | null;
   category: string | null;
   supplier_id: string | null;
-  taxes: Array<{ rate: number; base_cents: number; amount_cents: number }>;
+  taxes: { rate: number; base_cents: number; amount_cents: number }[];
   merchant: { name: string | null; nif: string | null };
   document: { number: string | null; date: string | null; currency: string };
   items: ReceiptItemDto[];
@@ -164,6 +164,15 @@ export interface EditableItem {
   category?: string | null;
 }
 
+export interface ReceiptListFilters {
+  q?: string;
+  month?: string;
+  category?: string;
+  status?: ReceiptDto['status'];
+  sort?: 'date_desc' | 'date_asc' | 'total_desc' | 'total_asc';
+  limit?: number;
+}
+
 export interface SupplierSummaryDto {
   id: string;
   name: string;
@@ -180,33 +189,33 @@ export interface SupplierDetailDto {
   nif: string | null;
   category: string | null;
   total_cents: number;
-  receipts: Array<{
+  receipts: {
     id: string;
     date: string;
     category: string | null;
     total_cents: number | null;
     status: string;
-  }>;
+  }[];
 }
 
 export interface StatsSummaryDto {
   month: string;
   total_cents: number;
   receipt_count: number;
-  by_category: Array<{ category: string; total_cents: number; count: number }>;
-  by_day: Array<{ day: string; total_cents: number }>;
-  top_suppliers: Array<{
+  by_category: { category: string; total_cents: number; count: number }[];
+  by_day: { day: string; total_cents: number }[];
+  top_suppliers: {
     supplier_id: string;
     name: string;
     total_cents: number;
     count: number;
-  }>;
+  }[];
   previous_month_total_cents: number;
   insights: string[];
 }
 
 export interface ReportDto {
-  rows: Array<{
+  rows: {
     id: string;
     date: string;
     supplier: string | null;
@@ -215,7 +224,7 @@ export interface ReportDto {
     net_cents: number | null;
     tax_cents: number | null;
     total_cents: number;
-  }>;
+  }[];
   totals: {
     net_cents: number;
     tax_cents: number;
@@ -229,18 +238,18 @@ export interface SplitSummaryDto {
   status: 'open' | 'closed';
   merchant_name: string | null;
   total_cents: number | null;
-  participants: Array<{
+  participants: {
     id: string;
     display_name: string;
     subtotal_cents: number;
     fees_cents: number;
     total_cents: number;
-  }>;
-  unclaimed: Array<{
+  }[];
+  unclaimed: {
     description: string;
     quantity_remaining: number;
     amount_cents: number;
-  }>;
+  }[];
   warnings: string[];
 }
 
@@ -257,7 +266,7 @@ async function handle<T>(res: Response): Promise<T> {
 export async function uploadReceipt(
   imageUri: string,
 ): Promise<{ receipt_id: string; status: string }> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   const form = new FormData();
   const name = imageUri.split('/').pop() ?? 'fatura.jpg';
   const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : 'jpg';
@@ -272,17 +281,25 @@ export async function uploadReceipt(
 }
 
 export async function getReceipt(id: string): Promise<ReceiptDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   return handle(await fetch(`${API_URL}/receipts/${id}`, { headers }));
 }
 
-export async function listReceipts(): Promise<ReceiptDto[]> {
-  const headers = await authHeaders();
-  return handle(await fetch(`${API_URL}/receipts`, { headers }));
+export async function listReceipts(filters: ReceiptListFilters = {}): Promise<ReceiptDto[]> {
+  const headers = await getAuthHeaders();
+  const params = new URLSearchParams();
+  if (filters.q?.trim()) params.set('q', filters.q.trim());
+  if (filters.month) params.set('month', filters.month);
+  if (filters.category) params.set('category', filters.category);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.sort) params.set('sort', filters.sort);
+  if (filters.limit) params.set('limit', String(filters.limit));
+  const qs = params.toString();
+  return handle(await fetch(`${API_URL}/receipts${qs ? `?${qs}` : ''}`, { headers }));
 }
 
 export async function updateItems(id: string, items: EditableItem[]): Promise<ReceiptDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/receipts/${id}/items`, {
     method: 'PATCH',
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -295,7 +312,7 @@ export async function updateReceipt(
   id: string,
   body: { category?: MacroCategory; merchant_name?: string },
 ): Promise<ReceiptDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/receipts/${id}`, {
     method: 'PATCH',
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -305,22 +322,22 @@ export async function updateReceipt(
 }
 
 export async function deleteReceipt(id: string): Promise<void> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   await handle(await fetch(`${API_URL}/receipts/${id}`, { method: 'DELETE', headers }));
 }
 
 export async function listSuppliers(): Promise<SupplierSummaryDto[]> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   return handle(await fetch(`${API_URL}/suppliers`, { headers }));
 }
 
 export async function getSupplier(id: string): Promise<SupplierDetailDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   return handle(await fetch(`${API_URL}/suppliers/${id}`, { headers }));
 }
 
 export async function renameSupplier(id: string, name: string): Promise<SupplierDetailDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/suppliers/${id}`, {
     method: 'PUT',
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -330,7 +347,7 @@ export async function renameSupplier(id: string, name: string): Promise<Supplier
 }
 
 export async function mergeSuppliers(sourceId: string, targetId: string): Promise<void> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   await handle(
     await fetch(`${API_URL}/suppliers/merge`, {
       method: 'POST',
@@ -341,7 +358,7 @@ export async function mergeSuppliers(sourceId: string, targetId: string): Promis
 }
 
 export async function getStatsSummary(month?: string): Promise<StatsSummaryDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   const qs = month ? `?month=${month}` : '';
   return handle(await fetch(`${API_URL}/stats/summary${qs}`, { headers }));
 }
@@ -351,7 +368,7 @@ export async function getReport(filters: {
   category?: string;
   supplier_id?: string;
 }): Promise<ReportDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   return handle(
     await fetch(`${API_URL}/reports/expenses${reportQuery(filters)}`, { headers }),
   );
@@ -383,7 +400,7 @@ export async function createSplitSession(receiptId: string): Promise<{
   public_token: string;
   share_url: string;
 }> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/receipts/${receiptId}/split-sessions`, {
     method: 'POST',
     headers,
@@ -401,7 +418,7 @@ export async function getSplitSummary(token: string): Promise<SplitSummaryDto> {
 }
 
 export async function closeSplitSession(token: string): Promise<void> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   await handle(
     await fetch(`${API_URL}/split-sessions/${token}/close`, { method: 'POST', headers }),
   );
@@ -426,7 +443,7 @@ export interface RecurringExpenseDto {
 }
 
 export async function listRecurringExpenses(): Promise<RecurringExpenseDto[]> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   return handle(await fetch(`${API_URL}/recurring-expenses`, { headers }));
 }
 
@@ -436,7 +453,7 @@ export async function createRecurringExpense(body: {
   category?: string;
   day_of_month?: number;
 }): Promise<RecurringExpenseDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/recurring-expenses`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -446,7 +463,7 @@ export async function createRecurringExpense(body: {
 }
 
 export async function deleteRecurringExpense(id: string): Promise<void> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   await handle(await fetch(`${API_URL}/recurring-expenses/${id}`, { method: 'DELETE', headers }));
 }
 
@@ -459,7 +476,7 @@ export interface BudgetDto {
 }
 
 export async function listBudgets(): Promise<BudgetDto[]> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   return handle(await fetch(`${API_URL}/budgets`, { headers }));
 }
 
@@ -467,7 +484,7 @@ export async function createBudget(body: {
   category: string;
   monthly_limit_cents: number;
 }): Promise<BudgetDto> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/budgets`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -477,6 +494,6 @@ export async function createBudget(body: {
 }
 
 export async function deleteBudget(id: string): Promise<void> {
-  const headers = await authHeaders();
+  const headers = await getAuthHeaders();
   await handle(await fetch(`${API_URL}/budgets/${id}`, { method: 'DELETE', headers }));
 }

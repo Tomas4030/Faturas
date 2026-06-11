@@ -14,10 +14,12 @@ import { validateLine, validateTotals } from '../money/money';
 import { SuppliersService } from '../suppliers/suppliers.service';
 import {
   ReceiptDto,
+  listReceiptsSchema,
   toReceiptDto,
   updateItemsSchema,
   updateReceiptSchema,
 } from './dto';
+import { Prisma } from '@prisma/client';
 
 export const UPLOADS_DIR = join(process.cwd(), 'uploads');
 
@@ -109,11 +111,13 @@ export class ReceiptsService {
 
     const supplier = processed.receiptFields.merchantName
       ? await this.suppliers.findOrCreateSupplier({
+          userId: receipt.userId,
           name: processed.receiptFields.merchantName,
           nif: processed.receiptFields.merchantNif,
         })
       : null;
     const category = await this.suppliers.resolveCategory({
+      userId: receipt.userId,
       merchantName: processed.receiptFields.merchantName,
       supplier,
       aiSuggestion: processed.suggestedCategory,
@@ -158,12 +162,53 @@ export class ReceiptsService {
     return toReceiptDto(receipt);
   }
 
-  async findAll(userId: string): Promise<ReceiptDto[]> {
+  async findAll(userId: string, filters: unknown = {}): Promise<ReceiptDto[]> {
+    const parsed = listReceiptsSchema.safeParse(filters);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+
+    const where: Prisma.ReceiptWhereInput = { userId };
+    const and: Prisma.ReceiptWhereInput[] = [];
+
+    if (parsed.data.month) {
+      const [year, month] = parsed.data.month.split('-').map(Number);
+      const start = new Date(Date.UTC(year, month - 1, 1));
+      const end = new Date(Date.UTC(year, month, 1));
+      and.push({
+        OR: [
+          { documentDate: { gte: start, lt: end } },
+          { documentDate: null, createdAt: { gte: start, lt: end } },
+        ],
+      });
+    }
+    if (parsed.data.category) where.category = parsed.data.category;
+    if (parsed.data.status) where.status = parsed.data.status;
+    if (parsed.data.q) {
+      and.push({
+        OR: [
+          { merchantName: { contains: parsed.data.q, mode: 'insensitive' } },
+          { merchantNif: { contains: parsed.data.q, mode: 'insensitive' } },
+          { documentNumber: { contains: parsed.data.q, mode: 'insensitive' } },
+        ],
+      });
+    }
+    if (and.length > 0) where.AND = and;
+
+    const orderBy: Prisma.ReceiptOrderByWithRelationInput[] =
+      parsed.data.sort === 'date_asc'
+        ? [{ documentDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }]
+        : parsed.data.sort === 'total_desc'
+          ? [{ totalCents: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }]
+          : parsed.data.sort === 'total_asc'
+            ? [{ totalCents: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }]
+            : [{ documentDate: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }];
+
     const receipts = await this.prisma.receipt.findMany({
-      where: { userId },
+      where,
       include: { items: true, taxes: true },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+      orderBy,
+      take: parsed.data.limit,
     });
     return receipts.map(toReceiptDto);
   }
@@ -198,6 +243,7 @@ export class ReceiptsService {
 
     if (parsed.data.merchant_name) {
       const supplier = await this.suppliers.findOrCreateSupplier({
+        userId,
         name: parsed.data.merchant_name,
         nif: existing.merchantNif,
       });
@@ -206,6 +252,7 @@ export class ReceiptsService {
 
     if (parsed.data.category && merchantName) {
       await this.suppliers.recordCategoryCorrection(
+        userId,
         merchantName,
         parsed.data.category,
         supplierId,

@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -57,8 +58,8 @@ export class ReceiptsController {
   }
 
   @Get()
-  findAll(@Req() req: { userId: string }) {
-    return this.receipts.findAll(req.userId);
+  findAll(@Req() req: { userId: string }, @Query() query: unknown) {
+    return this.receipts.findAll(req.userId, query);
   }
 
   @Get(':id')

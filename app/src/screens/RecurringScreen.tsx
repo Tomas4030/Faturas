@@ -15,7 +15,6 @@ import {
   deleteRecurringExpense,
   formatCents,
   listRecurringExpenses,
-  MACRO_CATEGORIES,
   RecurringExpenseDto,
 } from '../api';
 import { colors, radius } from '../theme';
@@ -25,7 +24,7 @@ export function RecurringScreen() {
   const [showForm, setShowForm] = useState(false);
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<string>('outros');
+  const category = 'outros';
 
   const refresh = useCallback(() => {
     listRecurringExpenses().then(setItems).catch(() => {});

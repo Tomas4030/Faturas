@@ -6,7 +6,10 @@ import {
   Param,
   Post,
   Put,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtGuard } from '../auth/jwt.guard';
 import { SplitService } from './split.service';
 import { SPLIT_PAGE_HTML } from './split-page';
 
@@ -15,8 +18,9 @@ export class SplitController {
   constructor(private readonly split: SplitService) {}
 
   @Post('receipts/:id/split-sessions')
-  create(@Param('id') receiptId: string) {
-    return this.split.createForReceipt(receiptId);
+  @UseGuards(JwtGuard)
+  create(@Param('id') receiptId: string, @Req() req: { userId: string }) {
+    return this.split.createForReceipt(receiptId, req.userId);
   }
 
   @Get('split-sessions/:token')
@@ -44,8 +48,9 @@ export class SplitController {
   }
 
   @Post('split-sessions/:token/close')
-  close(@Param('token') token: string) {
-    return this.split.close(token);
+  @UseGuards(JwtGuard)
+  close(@Param('token') token: string, @Req() req: { userId: string }) {
+    return this.split.close(token, req.userId);
   }
 
   /** Página pública para os amigos (browser, sem app). */
