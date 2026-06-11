@@ -10,6 +10,7 @@ import { SupplierDetailScreen } from './src/screens/SupplierDetailScreen';
 import { ProcessingScreen } from './src/screens/ProcessingScreen';
 import { ReviewScreen } from './src/screens/ReviewScreen';
 import { ReportScreen } from './src/screens/ReportScreen';
+import { SplitSummaryScreen } from './src/screens/SplitSummaryScreen';
 import { colors } from './src/theme';
 import type { RootStackParamList, TabsParamList } from './src/navigation';
 
@@ -107,6 +108,11 @@ export default function App() {
           name="Report"
           component={ReportScreen}
           options={{ title: 'Relatório' }}
+        />
+        <Stack.Screen
+          name="SplitSummary"
+          component={SplitSummaryScreen}
+          options={{ title: 'Dividir conta' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   categoryLabel,
+  createSplitSession,
   formatCents,
   getReceipt,
   MACRO_CATEGORIES,
@@ -142,6 +143,21 @@ export function ReviewScreen({ navigation, route }: Props) {
       setSaving(false);
     }
   }, [drafts, navigation, receiptId]);
+
+  const splitBill = useCallback(async () => {
+    try {
+      const session = await createSplitSession(receiptId);
+      navigation.navigate('SplitSummary', {
+        token: session.public_token,
+        shareUrl: session.share_url,
+      });
+    } catch {
+      Alert.alert(
+        'Erro',
+        'Não foi possível criar a sessão de divisão. Confirma os itens primeiro.',
+      );
+    }
+  }, [navigation, receiptId]);
 
   if (receipt == null) {
     return (
@@ -294,6 +310,10 @@ export function ReviewScreen({ navigation, route }: Props) {
             </Text>
           ) : null}
         </View>
+
+        <Pressable style={styles.splitButton} onPress={splitBill}>
+          <Text style={styles.splitLabel}>👥  Dividir conta com amigos</Text>
+        </Pressable>
       </ScrollView>
 
       <Pressable
@@ -402,6 +422,15 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 15, color: colors.textMuted },
   totalValue: { fontSize: 15, fontWeight: '700', color: colors.text },
   mismatch: { color: colors.danger, marginTop: 8, fontSize: 13 },
+  splitButton: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 8,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  splitLabel: { color: colors.accent, fontSize: 16, fontWeight: '700' },
   confirmButton: {
     position: 'absolute',
     left: 16,

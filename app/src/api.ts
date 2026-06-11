@@ -244,6 +244,52 @@ export async function updateReceipt(
   return handle(res);
 }
 
+export interface SplitSummaryDto {
+  token: string;
+  status: 'open' | 'closed';
+  merchant_name: string | null;
+  total_cents: number | null;
+  participants: Array<{
+    id: string;
+    display_name: string;
+    subtotal_cents: number;
+    fees_cents: number;
+    total_cents: number;
+  }>;
+  unclaimed: Array<{
+    description: string;
+    quantity_remaining: number;
+    amount_cents: number;
+  }>;
+  warnings: string[];
+}
+
+export async function createSplitSession(receiptId: string): Promise<{
+  split_session_id: string;
+  public_token: string;
+  share_url: string;
+}> {
+  const res = await fetch(`${API_URL}/receipts/${receiptId}/split-sessions`, {
+    method: 'POST',
+  });
+  const data = await handle<{
+    split_session_id: string;
+    public_token: string;
+    share_path: string;
+  }>(res);
+  return { ...data, share_url: `${API_URL}${data.share_path}` };
+}
+
+export async function getSplitSummary(token: string): Promise<SplitSummaryDto> {
+  return handle(await fetch(`${API_URL}/split-sessions/${token}/summary`));
+}
+
+export async function closeSplitSession(token: string): Promise<void> {
+  await handle(
+    await fetch(`${API_URL}/split-sessions/${token}/close`, { method: 'POST' }),
+  );
+}
+
 export function formatCents(cents: number | null | undefined): string {
   if (cents == null) return '—';
   const euros = Math.trunc(Math.abs(cents) / 100);

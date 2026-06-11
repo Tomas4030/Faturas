@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Review: { receiptId: string };
   SupplierDetail: { supplierId: string };
   Report: undefined;
+  SplitSummary: { token: string; shareUrl: string };
 };
 
 export type TabsParamList = {
