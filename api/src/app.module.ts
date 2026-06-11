@@ -6,6 +6,8 @@ import { SuppliersModule } from './suppliers/suppliers.module';
 import { StatsModule } from './stats/stats.module';
 import { ReportsModule } from './reports/reports.module';
 import { SplitModule } from './split/split.module';
+import { RecurringModule } from './recurring/recurring.module';
+import { BudgetsModule } from './budgets/budgets.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { SplitModule } from './split/split.module';
     StatsModule,
     ReportsModule,
     SplitModule,
+    RecurringModule,
+    BudgetsModule,
   ],
 })
 export class AppModule {}

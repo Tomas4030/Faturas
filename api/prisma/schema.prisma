@@ -22,6 +22,8 @@ model User {
   receipts     Receipt[]
   subscription Subscription?
   usageCounters UsageCounter[]
+  recurringExpenses RecurringExpense[]
+  budgets      Budget[]
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
@@ -192,4 +194,33 @@ model ReceiptItem {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("receipt_items")
+}
+
+
+model RecurringExpense {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  description String
+  amountCents Int      @map("amount_cents")
+  category    String?
+  dayOfMonth  Int      @default(1) @map("day_of_month")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("recurring_expenses")
+}
+
+model Budget {
+  id              String @id @default(cuid())
+  userId          String @map("user_id")
+  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        String
+  monthlyLimitCents Int  @map("monthly_limit_cents")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, category])
+  @@map("budgets")
 }

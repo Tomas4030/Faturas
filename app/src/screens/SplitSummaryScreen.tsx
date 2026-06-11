@@ -77,6 +77,14 @@ export function SplitSummaryScreen({ route }: Props) {
   }
 
   const closed = summary.status === 'closed';
+  const unclaimedTotal = summary.unclaimed.reduce(
+    (s, u) => s + u.amount_cents,
+    0,
+  );
+  const claimedTotal = summary.participants.reduce(
+    (s, p) => s + p.total_cents,
+    0,
+  );
 
   return (
     <View style={styles.container}>
@@ -91,9 +99,32 @@ export function SplitSummaryScreen({ route }: Props) {
         </Text>
         <Text style={styles.subtitle}>
           Total da fatura: {formatCents(summary.total_cents)}
-          {closed ? '  ·  Sessão fechada' : ''}
         </Text>
 
+        {closed ? (
+          <View style={styles.closedBadge}>
+            <Text style={styles.closedText}>✓ Sessão fechada</Text>
+          </View>
+        ) : null}
+
+        {/* Summary bar */}
+        {summary.participants.length > 0 ? (
+          <View style={styles.summaryBar}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{formatCents(claimedTotal)}</Text>
+              <Text style={styles.summaryLabel}>Reclamado</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryValue, unclaimedTotal > 0 ? { color: colors.warning } : null]}>
+                {formatCents(unclaimedTotal)}
+              </Text>
+              <Text style={styles.summaryLabel}>Por reclamar</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Participants */}
         {summary.participants.length === 0 ? (
           <View style={styles.card}>
             <Text style={styles.emptyTitle}>Ainda ninguém entrou</Text>
@@ -104,16 +135,17 @@ export function SplitSummaryScreen({ route }: Props) {
           </View>
         ) : (
           <View style={styles.card}>
-            {summary.participants.map((p) => (
-              <View key={p.id} style={styles.participantRow}>
+            <Text style={styles.sectionTitle}>Participantes</Text>
+            {summary.participants.map((p, i) => (
+              <View
+                key={p.id}
+                style={[
+                  styles.participantRow,
+                  i === summary.participants.length - 1 ? styles.lastRow : null,
+                ]}
+              >
                 <View style={styles.participantLeft}>
                   <Text style={styles.participantName}>{p.display_name}</Text>
-                  {p.fees_cents !== 0 ? (
-                    <Text style={styles.participantSub}>
-                      {formatCents(p.subtotal_cents)} + taxas{' '}
-                      {formatCents(p.fees_cents)}
-                    </Text>
-                  ) : null}
                 </View>
                 <Text style={styles.participantTotal}>
                   {formatCents(p.total_cents)}
@@ -123,13 +155,21 @@ export function SplitSummaryScreen({ route }: Props) {
           </View>
         )}
 
+        {/* Unclaimed items */}
         {summary.unclaimed.length > 0 ? (
-          <View style={styles.warningBox}>
-            <Text style={styles.warningTitle}>Por reclamar</Text>
+          <View style={styles.unclaimedCard}>
+            <Text style={styles.unclaimedTitle}>
+              Por reclamar ({summary.unclaimed.length} {summary.unclaimed.length === 1 ? 'item' : 'itens'})
+            </Text>
             {summary.unclaimed.map((u, i) => (
-              <Text key={i} style={styles.warningText}>
-                {u.description} — {formatCents(u.amount_cents)}
-              </Text>
+              <View key={i} style={styles.unclaimedRow}>
+                <Text style={styles.unclaimedName} numberOfLines={1}>
+                  {u.description}
+                </Text>
+                <Text style={styles.unclaimedPrice}>
+                  {formatCents(u.amount_cents)}
+                </Text>
+              </View>
             ))}
           </View>
         ) : null}
@@ -141,7 +181,7 @@ export function SplitSummaryScreen({ route }: Props) {
         ))}
       </ScrollView>
 
-      <View style={[styles.footer, { bottom: 16 + insets.bottom }]}>
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
         <Pressable style={styles.shareButton} onPress={share}>
           <Text style={styles.shareLabel}>🔗  Partilhar link</Text>
         </Pressable>
@@ -166,12 +206,34 @@ const styles = StyleSheet.create({
   scroll: { padding: 16 },
   merchant: { fontSize: 22, fontWeight: '700', color: colors.text },
   subtitle: { color: colors.textMuted, marginTop: 2, marginBottom: 12 },
+  closedBadge: {
+    backgroundColor: colors.success + '22',
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  closedText: { color: colors.success, fontSize: 13, fontWeight: '600' },
+  summaryBar: {
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: 14,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  summaryItem: { flex: 1, alignItems: 'center' },
+  summaryValue: { fontSize: 18, fontWeight: '800', color: colors.accent },
+  summaryLabel: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  summaryDivider: { width: 1, height: 30, backgroundColor: colors.border },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.md,
     padding: 14,
     marginBottom: 12,
   },
+  sectionTitle: { fontSize: 12, fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
   emptyText: { color: colors.textMuted, marginTop: 6, lineHeight: 20 },
   participantRow: {
@@ -182,23 +244,49 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  lastRow: { borderBottomWidth: 0 },
   participantLeft: { flex: 1, marginRight: 8 },
   participantName: { fontSize: 16, fontWeight: '600', color: colors.text },
-  participantSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   participantTotal: { fontSize: 18, fontWeight: '800', color: colors.accent },
+  unclaimedCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: 14,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning,
+  },
+  unclaimedTitle: {
+    fontWeight: '700',
+    color: colors.warning,
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  unclaimedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  unclaimedName: { flex: 1, fontSize: 14, color: colors.textMuted, marginRight: 8 },
+  unclaimedPrice: { fontSize: 14, color: colors.text, fontWeight: '600' },
   warningBox: {
     backgroundColor: colors.warningBg,
     borderRadius: radius.md,
     padding: 12,
     marginBottom: 8,
   },
-  warningTitle: {
-    fontWeight: '700',
-    color: colors.warning,
-    marginBottom: 4,
+  warningText: { color: colors.warning, fontSize: 13 },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
   },
-  warningText: { color: colors.warning, fontSize: 13, marginVertical: 1 },
-  footer: { position: 'absolute', left: 16, right: 16 },
   shareButton: {
     backgroundColor: colors.accent,
     borderRadius: radius.lg,

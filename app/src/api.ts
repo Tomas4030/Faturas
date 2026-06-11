@@ -8,11 +8,31 @@ function resolveApiUrl(): string {
     ?.apiUrl;
   if (override) return override;
   const hostUri = Constants.expoConfig?.hostUri;
-  const host = hostUri?.split(':')[0];
-  return `http://${host ?? 'localhost'}:3000`;
+  const host = hostUri?.split(':')[0] ?? 'localhost';
+  return `http://${host}:3000`;
 }
 
-export const API_URL = resolveApiUrl();
+export let API_URL = resolveApiUrl();
+
+// Try to discover the actual API port (3000-3019)
+async function discoverApi(): Promise<void> {
+  const hostUri = Constants.expoConfig?.hostUri;
+  const host = hostUri?.split(':')[0] ?? 'localhost';
+  for (let p = 3000; p < 3020; p++) {
+    try {
+      const res = await fetch(`http://${host}:${p}/auth/me`, { method: 'GET' });
+      // 401 means the API is there (just unauthorized)
+      if (res.status === 401 || res.ok) {
+        API_URL = `http://${host}:${p}`;
+        return;
+      }
+    } catch {
+      // port not responding, try next
+    }
+  }
+}
+
+export const apiReady = discoverApi();
 
 // --- Token management ---
 let _token: string | null = null;
@@ -299,6 +319,27 @@ export async function getSupplier(id: string): Promise<SupplierDetailDto> {
   return handle(await fetch(`${API_URL}/suppliers/${id}`, { headers }));
 }
 
+export async function renameSupplier(id: string, name: string): Promise<SupplierDetailDto> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_URL}/suppliers/${id}`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  return handle(res);
+}
+
+export async function mergeSuppliers(sourceId: string, targetId: string): Promise<void> {
+  const headers = await authHeaders();
+  await handle(
+    await fetch(`${API_URL}/suppliers/merge`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_id: sourceId, target_id: targetId }),
+    }),
+  );
+}
+
 export async function getStatsSummary(month?: string): Promise<StatsSummaryDto> {
   const headers = await authHeaders();
   const qs = month ? `?month=${month}` : '';
@@ -372,4 +413,70 @@ export function formatCents(cents: number | null | undefined): string {
   const remainder = Math.abs(cents) % 100;
   const sign = cents < 0 ? '-' : '';
   return `${sign}${euros},${String(remainder).padStart(2, '0')} €`;
+}
+
+// --- Recurring Expenses ---
+export interface RecurringExpenseDto {
+  id: string;
+  description: string;
+  amountCents: number;
+  category: string | null;
+  dayOfMonth: number;
+  active: boolean;
+}
+
+export async function listRecurringExpenses(): Promise<RecurringExpenseDto[]> {
+  const headers = await authHeaders();
+  return handle(await fetch(`${API_URL}/recurring-expenses`, { headers }));
+}
+
+export async function createRecurringExpense(body: {
+  description: string;
+  amount_cents: number;
+  category?: string;
+  day_of_month?: number;
+}): Promise<RecurringExpenseDto> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_URL}/recurring-expenses`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handle(res);
+}
+
+export async function deleteRecurringExpense(id: string): Promise<void> {
+  const headers = await authHeaders();
+  await handle(await fetch(`${API_URL}/recurring-expenses/${id}`, { method: 'DELETE', headers }));
+}
+
+// --- Budgets ---
+export interface BudgetDto {
+  id: string;
+  category: string;
+  monthly_limit_cents: number;
+  spent_cents: number;
+}
+
+export async function listBudgets(): Promise<BudgetDto[]> {
+  const headers = await authHeaders();
+  return handle(await fetch(`${API_URL}/budgets`, { headers }));
+}
+
+export async function createBudget(body: {
+  category: string;
+  monthly_limit_cents: number;
+}): Promise<BudgetDto> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_URL}/budgets`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handle(res);
+}
+
+export async function deleteBudget(id: string): Promise<void> {
+  const headers = await authHeaders();
+  await handle(await fetch(`${API_URL}/budgets/${id}`, { method: 'DELETE', headers }));
 }

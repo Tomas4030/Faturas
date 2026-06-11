@@ -19,6 +19,7 @@ import {
   StatsSummaryDto,
 } from '../api';
 import { colors, radius } from '../theme';
+import { useScanReceipt } from '../hooks/useScanReceipt';
 import type { RootStackParamList } from '../navigation';
 
 const MONTH_NAMES = [
@@ -60,6 +61,7 @@ export function DashboardScreen() {
   const [stats, setStats] = useState<StatsSummaryDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<ProfileDto | null>(null);
+  const { scan, uploading } = useScanReceipt();
 
   const load = useCallback((m: string) => {
     setLoading(true);
@@ -99,7 +101,7 @@ export function DashboardScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: 24 + insets.bottom },
+          { paddingBottom: 16 },
         ]}
       >
         <View style={styles.monthSelector}>
@@ -200,11 +202,11 @@ export function DashboardScreen() {
                 <View style={styles.chartCard}>
                   <View style={styles.chart}>
                     {stats.by_day.map((d) => (
-                      <View key={d.day} style={styles.barColumn}>
+                      <View key={d.day} style={[styles.barColumn, { maxWidth: 40 }]}>
                         <View
                           style={[
                             styles.bar,
-                            { height: Math.max(4, (d.total_cents / maxDay) * 120) },
+                            { height: Math.max(4, (d.total_cents / maxDay) * 80) },
                           ]}
                         />
                         <Text style={styles.barLabel}>
@@ -252,6 +254,28 @@ export function DashboardScreen() {
           </View>
         )}
       </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
+        <View style={styles.footerRow}>
+          <Pressable
+            style={[styles.scanButton, styles.scanButtonFlex, uploading ? styles.scanDisabled : null]}
+            onPress={scan}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <ActivityIndicator color={colors.onAccent} />
+            ) : (
+              <Text style={styles.scanLabel}>📷  Digitalizar fatura</Text>
+            )}
+          </Pressable>
+          <Pressable
+            style={styles.qrButton}
+            onPress={() => navigation.navigate('QrScan')}
+          >
+            <Text style={styles.qrLabel}>QR</Text>
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
 }
@@ -331,8 +355,9 @@ const styles = StyleSheet.create({
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 4,
-    minHeight: 140,
+    gap: 6,
+    minHeight: 100,
+    justifyContent: 'center',
   },
   barColumn: { flex: 1, alignItems: 'center' },
   bar: {
@@ -369,4 +394,31 @@ const styles = StyleSheet.create({
     overflow: 'hidden' as const,
   },
   usageBarFill: { height: 6, backgroundColor: colors.accent, borderRadius: 3 },
+  footer: {
+    backgroundColor: colors.bg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  scanButton: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.lg,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  scanButtonFlex: { flex: 1 },
+  scanDisabled: { opacity: 0.6 },
+  scanLabel: { color: colors.onAccent, fontSize: 17, fontWeight: '700' },
+  footerRow: { flexDirection: 'row', gap: 10 },
+  qrButton: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    width: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  qrLabel: { color: colors.accent, fontSize: 15, fontWeight: '700' },
 });

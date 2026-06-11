@@ -145,7 +145,8 @@ async function refreshSummary(){
     if(me){ html = '<div class="total-big" style="margin:8px 0">'+euros(p.total_cents)+'</div><div class="muted" style="margin-bottom:8px">a tua parte</div>'+html; }
   });
   if(s.unclaimed.length){
-    html += '<div class="warn">Por reclamar: '+s.unclaimed.map(u=>esc(u.description)+' ('+euros(u.amount_cents)+')').join(', ')+'</div>';
+    html += '<div class="warn" style="margin-top:12px"><b>Por reclamar:</b></div>';
+    s.unclaimed.forEach(u=>{ html += '<div class="row" style="font-size:13px;color:var(--warning)"><span>'+esc(u.description)+'</span><span>'+euros(u.amount_cents)+'</span></div>'; });
   }
   s.warnings.forEach(w=>{ html += '<div class="warn">⚠️ '+esc(w)+'</div>'; });
   document.getElementById('summary').innerHTML = html || 'Ainda ninguém escolheu itens.';

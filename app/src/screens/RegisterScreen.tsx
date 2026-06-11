@@ -33,7 +33,7 @@ export function RegisterScreen({ navigation }: Props) {
     try {
       const res = await apiRegister(email.trim().toLowerCase(), password, name.trim() || undefined);
       await setToken(res.access_token);
-      navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
     } catch (e: any) {
       Alert.alert('Erro', e.message?.includes('409') ? 'Email já registado' : 'Erro ao criar conta');
     } finally {

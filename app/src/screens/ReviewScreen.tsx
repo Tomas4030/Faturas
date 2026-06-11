@@ -35,6 +35,7 @@ interface DraftItem {
   description: string;
   quantityText: string;
   unitPriceText: string; // euros, ex.: "18,50"
+  discountCents: number; // desconto positivo em cêntimos (ex: 2000 = 20€)
   suspect: boolean;
 }
 
@@ -54,9 +55,10 @@ function textToCents(text: string): number {
 }
 
 function draftLineTotalCents(item: DraftItem): number {
-  return Math.round(
+  const gross = Math.round(
     textToNumber(item.quantityText) * textToCents(item.unitPriceText),
   );
+  return gross - item.discountCents;
 }
 
 export function ReviewScreen({ navigation, route }: Props) {
@@ -78,11 +80,9 @@ export function ReviewScreen({ navigation, route }: Props) {
             item.description.toUpperCase().includes('DESCONTO');
           if (isDiscount && grouped.length > 0) {
             const parent = grouped[grouped.length - 1];
-            const newTotal =
-              textToCents(parent.unitPriceText) + item.unit_price_cents;
             grouped[grouped.length - 1] = {
               ...parent,
-              unitPriceText: centsToText(newTotal),
+              discountCents: parent.discountCents + Math.abs(item.unit_price_cents),
             };
           } else {
             grouped.push({
@@ -90,6 +90,7 @@ export function ReviewScreen({ navigation, route }: Props) {
               description: item.description,
               quantityText: String(item.quantity).replace('.', ','),
               unitPriceText: centsToText(item.unit_price_cents),
+              discountCents: 0,
               suspect: item.suspect,
             });
           }
@@ -121,6 +122,7 @@ export function ReviewScreen({ navigation, route }: Props) {
         description: '',
         quantityText: '1',
         unitPriceText: '0,00',
+        discountCents: 0,
         suspect: false,
       },
     ]);
@@ -191,7 +193,7 @@ export function ReviewScreen({ navigation, route }: Props) {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: 120 + insets.bottom },
+          { paddingBottom: 16 + insets.bottom },
         ]}
       >
         <Text style={styles.merchant} numberOfLines={1}>
@@ -300,6 +302,16 @@ export function ReviewScreen({ navigation, route }: Props) {
                 </Text>
               </View>
             </View>
+            {item.discountCents > 0 ? (
+              <View style={styles.discountRow}>
+                <Text style={styles.discountLabel}>
+                  Desconto: -{formatCents(item.discountCents)}
+                </Text>
+                <Text style={styles.discountFinal}>
+                  Pago: {formatCents(draftLineTotalCents(item))}
+                </Text>
+              </View>
+            ) : null}
             {item.suspect ? (
               <Text style={styles.suspectLabel}>
                 Linha suspeita — confirma os valores.
@@ -314,14 +326,26 @@ export function ReviewScreen({ navigation, route }: Props) {
 
         <View style={styles.totals}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total dos itens</Text>
+            <Text style={styles.totalLabel}>Total s/ IVA</Text>
             <Text style={styles.totalValue}>
-              {formatCents(detectedTotalCents)}
+              {formatCents(
+                receipt.totals.tax_cents != null
+                  ? detectedTotalCents - receipt.totals.tax_cents
+                  : detectedTotalCents,
+              )}
             </Text>
           </View>
+          {receipt.totals.tax_cents != null && receipt.totals.tax_cents > 0 ? (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>IVA</Text>
+              <Text style={styles.totalValue}>
+                {formatCents(receipt.totals.tax_cents)}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total na fatura</Text>
-            <Text style={styles.totalValue}>
+            <Text style={styles.totalLabel}>Total c/ IVA</Text>
+            <Text style={[styles.totalValue, { fontWeight: '800' }]}>
               {formatCents(invoiceTotalCents)}
             </Text>
           </View>
@@ -333,26 +357,24 @@ export function ReviewScreen({ navigation, route }: Props) {
           ) : null}
         </View>
 
-        <Pressable style={styles.splitButton} onPress={splitBill}>
-          <Text style={styles.splitLabel}>👥  Dividir conta com amigos</Text>
-        </Pressable>
       </ScrollView>
 
-      <Pressable
-        style={[
-          styles.confirmButton,
-          { bottom: 16 + insets.bottom },
-          saving ? styles.confirmDisabled : null,
-        ]}
-        onPress={confirm}
-        disabled={saving}
-      >
-        {saving ? (
-          <ActivityIndicator color={colors.onAccent} />
-        ) : (
-          <Text style={styles.confirmLabel}>Confirmar</Text>
-        )}
-      </Pressable>
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
+        <Pressable
+          style={[styles.confirmButton, saving ? styles.confirmDisabled : null]}
+          onPress={confirm}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator color={colors.onAccent} />
+          ) : (
+            <Text style={styles.confirmLabel}>Confirmar</Text>
+          )}
+        </Pressable>
+        <Pressable style={styles.splitButtonFooter} onPress={splitBill}>
+          <Text style={styles.splitLabel}>👥  Dividir conta com amigos</Text>
+        </Pressable>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -428,6 +450,16 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   suspectLabel: { color: colors.warning, fontSize: 12, marginTop: 6 },
+  discountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  discountLabel: { fontSize: 13, color: colors.success },
+  discountFinal: { fontSize: 13, fontWeight: '700', color: colors.text },
   addButton: { alignItems: 'center', paddingVertical: 12 },
   addLabel: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   totals: {
@@ -454,9 +486,6 @@ const styles = StyleSheet.create({
   },
   splitLabel: { color: colors.accent, fontSize: 16, fontWeight: '700' },
   confirmButton: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
     backgroundColor: colors.accent,
     borderRadius: radius.lg,
     paddingVertical: 16,
@@ -464,4 +493,15 @@ const styles = StyleSheet.create({
   },
   confirmDisabled: { opacity: 0.6 },
   confirmLabel: { color: colors.onAccent, fontSize: 17, fontWeight: '700' },
+  footer: {
+    backgroundColor: colors.bg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  splitButtonFooter: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
 });

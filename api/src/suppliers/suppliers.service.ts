@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Supplier } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { normalizeName } from './normalize';
@@ -160,5 +160,31 @@ export class SuppliersService {
         status: r.status,
       })),
     };
+  }
+
+  async rename(id: string, name: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id } });
+    if (!supplier) throw new NotFoundException('Fornecedor não encontrado');
+    return this.prisma.supplier.update({
+      where: { id },
+      data: { name: name.trim(), normalizedName: normalizeName(name) },
+    });
+  }
+
+  async merge(sourceId: string, targetId: string) {
+    if (sourceId === targetId)
+      throw new BadRequestException('source e target não podem ser iguais');
+    const [source, target] = await Promise.all([
+      this.prisma.supplier.findUnique({ where: { id: sourceId } }),
+      this.prisma.supplier.findUnique({ where: { id: targetId } }),
+    ]);
+    if (!source || !target)
+      throw new NotFoundException('Fornecedor não encontrado');
+    await this.prisma.receipt.updateMany({
+      where: { supplierId: sourceId },
+      data: { supplierId: targetId },
+    });
+    await this.prisma.supplier.delete({ where: { id: sourceId } });
+    return target;
   }
 }
