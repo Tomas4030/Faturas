@@ -99,6 +99,18 @@ export function ProfileScreen() {
       >
         <Text style={styles.menuText}>💰  Orçamentos</Text>
       </Pressable>
+      <Pressable
+        style={styles.menuItem}
+        onPress={() => navigation.navigate('Kids')}
+      >
+        <Text style={styles.menuText}>👶  Conta Kid</Text>
+      </Pressable>
+      <Pressable
+        style={styles.menuItem}
+        onPress={() => navigation.navigate('Spaces')}
+      >
+        <Text style={styles.menuText}>👥  Espaços partilhados</Text>
+      </Pressable>
 
       {/* Logout */}
       <Pressable style={styles.logoutBtn} onPress={logout}>

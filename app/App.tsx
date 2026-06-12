@@ -23,6 +23,8 @@ import { UpgradeScreen } from './src/screens/UpgradeScreen';
 import { RecurringScreen } from './src/screens/RecurringScreen';
 import { BudgetsScreen } from './src/screens/BudgetsScreen';
 import { QrScanScreen } from './src/screens/QrScanScreen';
+import { KidsScreen } from './src/screens/KidsScreen';
+import { SpacesScreen } from './src/screens/SpacesScreen';
 import { colors } from './src/theme';
 import type { RootStackParamList, TabsParamList } from './src/navigation';
 
@@ -84,7 +86,8 @@ export default function App() {
       void NavigationBar.setVisibilityAsync('hidden').catch(() => {});
       void NavigationBar.setBehaviorAsync('overlay-swipe').catch(() => {});
     }
-    apiReady
+    const timeout = new Promise<void>((r) => setTimeout(r, 3000));
+    Promise.race([apiReady, timeout])
       .then(() => loadToken())
       .then((t) => setHasToken(!!t))
       .catch(() => {})
@@ -124,6 +127,8 @@ export default function App() {
         <Stack.Screen name="Recurring" component={RecurringScreen} options={{ title: 'Despesas recorrentes' }} />
         <Stack.Screen name="Budgets" component={BudgetsScreen} options={{ title: 'Orçamentos' }} />
         <Stack.Screen name="QrScan" component={QrScanScreen} options={{ title: 'QR Code' }} />
+        <Stack.Screen name="Kids" component={KidsScreen} options={{ title: 'Conta Kid' }} />
+        <Stack.Screen name="Spaces" component={SpacesScreen} options={{ title: 'Espaços' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

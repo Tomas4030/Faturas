@@ -12,6 +12,8 @@ export type RootStackParamList = {
   Recurring: undefined;
   Budgets: undefined;
   QrScan: undefined;
+  Kids: undefined;
+  Spaces: undefined;
 };
 
 export type TabsParamList = {

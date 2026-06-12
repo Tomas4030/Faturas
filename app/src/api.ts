@@ -14,21 +14,29 @@ function resolveApiUrl(): string {
 
 export let API_URL = resolveApiUrl();
 
-// Try to discover the actual API port (3000-3019)
+// Quick check if API is reachable, fallback to default
 async function discoverApi(): Promise<void> {
+  try {
+    const res = await Promise.race([
+      fetch(`${API_URL}/auth/me`),
+      new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000)),
+    ]);
+    if (res.status === 401 || res.ok) return;
+  } catch {}
+  // If default port fails, try 3001-3005 quickly
   const hostUri = Constants.expoConfig?.hostUri;
   const host = hostUri?.split(':')[0] ?? 'localhost';
-  for (let p = 3000; p < 3020; p++) {
+  for (let p = 3001; p <= 3005; p++) {
     try {
-      const res = await fetch(`http://${host}:${p}/auth/me`, { method: 'GET' });
-      // 401 means the API is there (just unauthorized)
+      const res = await Promise.race([
+        fetch(`http://${host}:${p}/auth/me`),
+        new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('timeout')), 1000)),
+      ]);
       if (res.status === 401 || res.ok) {
         API_URL = `http://${host}:${p}`;
         return;
       }
-    } catch {
-      // port not responding, try next
-    }
+    } catch {}
   }
 }
 
