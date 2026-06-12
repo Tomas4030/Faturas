@@ -11,6 +11,10 @@ import { SplitModule } from './split/split.module';
 import { RecurringModule } from './recurring/recurring.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { ActivityModule } from './activity/activity.module';
+import { SpacesModule } from './spaces/spaces.module';
+import { KidsModule } from './kids/kids.module';
+import { ChatbotModule } from './chatbot/chatbot.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -25,6 +29,10 @@ import { ActivityModule } from './activity/activity.module';
     RecurringModule,
     BudgetsModule,
     ActivityModule,
+    ChatbotModule,
+    SubscriptionsModule,
+    SpacesModule,
+    KidsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

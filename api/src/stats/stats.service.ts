@@ -114,8 +114,21 @@ export class StatsService {
 
     const previousMonthTotalCents = previous._sum.totalCents ?? 0;
 
+    // Forecast: average daily spending projected to full month
+    const today = new Date();
+    const daysElapsed =
+      year === today.getUTCFullYear() && monthNum - 1 === today.getUTCMonth()
+        ? today.getUTCDate()
+        : new Date(Date.UTC(year, monthNum, 0)).getUTCDate(); // past month → full
+    const totalDaysInMonth = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
+    const forecastCents =
+      daysElapsed > 0
+        ? Math.round((totalCents / daysElapsed) * totalDaysInMonth)
+        : 0;
+
     return {
       month: monthStr,
+      forecast_cents: forecastCents,
       total_cents: totalCents,
       receipt_count: receipts.length,
       by_category: byCategory,
