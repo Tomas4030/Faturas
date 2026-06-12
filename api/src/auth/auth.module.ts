@@ -15,10 +15,7 @@ import { PrismaService } from '../prisma.service';
         if (!secret) {
           throw new Error('JWT_SECRET é obrigatório. Define-o no .env.');
         }
-        return {
-          secret,
-          signOptions: { expiresIn: '30d' },
-        };
+        return { secret };
       },
     }),
   ],

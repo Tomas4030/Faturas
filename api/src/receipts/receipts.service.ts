@@ -12,6 +12,7 @@ import { ExtractionService } from '../extraction/extraction.service';
 import { postprocess } from '../extraction/postprocess';
 import { validateLine, validateTotals } from '../money/money';
 import { SuppliersService } from '../suppliers/suppliers.service';
+import { ActivityService } from '../activity/activity.service';
 import {
   ReceiptDto,
   listReceiptsSchema,
@@ -31,6 +32,7 @@ export class ReceiptsService {
     private readonly prisma: PrismaService,
     private readonly extraction: ExtractionService,
     private readonly suppliers: SuppliersService,
+    private readonly activity: ActivityService,
   ) {}
 
   private async checkUsageLimit(userId: string): Promise<void> {
@@ -83,6 +85,8 @@ export class ReceiptsService {
     });
 
     await this.incrementUsage(userId);
+
+    void this.activity.log(userId, 'receipt.created', receipt.id);
 
     void this.processReceipt(receipt.id).catch(async (error) => {
       this.logger.error(`Extração de ${receipt.id} falhou: ${String(error)}`);
@@ -337,6 +341,8 @@ export class ReceiptsService {
         },
       }),
     ]);
+
+    void this.activity.log(userId, 'receipt.confirmed', id);
 
     return this.findOne(id, userId);
   }

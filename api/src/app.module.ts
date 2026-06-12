@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
@@ -8,10 +10,12 @@ import { ReportsModule } from './reports/reports.module';
 import { SplitModule } from './split/split.module';
 import { RecurringModule } from './recurring/recurring.module';
 import { BudgetsModule } from './budgets/budgets.module';
+import { ActivityModule } from './activity/activity.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot({ throttlers: [{ ttl: 60000, limit: 20 }] }),
     AuthModule,
     ReceiptsModule,
     SuppliersModule,
@@ -20,6 +24,8 @@ import { BudgetsModule } from './budgets/budgets.module';
     SplitModule,
     RecurringModule,
     BudgetsModule,
+    ActivityModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

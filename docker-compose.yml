@@ -6,8 +6,18 @@ services:
       POSTGRES_PASSWORD: faturas
       POSTGRES_DB: faturas
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
+  api:
+    build: ./api
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: postgresql://faturas:faturas@db:5432/faturas
+      JWT_SECRET: change-me-in-production
+      EXTRACTION_MODE: mock
+    depends_on:
+      - db
 volumes:
   pgdata:

@@ -1,6 +1,8 @@
-import { Controller, Get, Header, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtGuard } from '../auth/jwt.guard';
 import { ReportsService, ReportFilters } from './reports.service';
+import { generateReportPdf } from './pdf';
 
 @UseGuards(JwtGuard)
 @Controller('reports')
@@ -27,6 +29,20 @@ export class ReportsController {
     @Req() req: { userId: string },
   ) {
     return this.reports.expensesCsv(this.filters(month, category, supplierId), req.userId);
+  }
+
+  @Get('expenses.pdf')
+  async expensesPdf(
+    @Query('month') month: string | undefined,
+    @Query('category') category: string | undefined,
+    @Query('supplier_id') supplierId: string | undefined,
+    @Req() req: { userId: string },
+    @Res() res: Response,
+  ) {
+    const data = await this.reports.expenses(this.filters(month, category, supplierId), req.userId);
+    const pdf = await generateReportPdf(data);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'attachment; filename="despesas.pdf"' });
+    res.send(pdf);
   }
 
   private filters(

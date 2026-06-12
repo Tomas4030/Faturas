@@ -5,9 +5,10 @@ import { ExtractionService } from '../extraction/extraction.service';
 import { PrismaService } from '../prisma.service';
 import { SuppliersModule } from '../suppliers/suppliers.module';
 import { AuthModule } from '../auth/auth.module';
+import { ActivityModule } from '../activity/activity.module';
 
 @Module({
-  imports: [SuppliersModule, AuthModule],
+  imports: [SuppliersModule, AuthModule, ActivityModule],
   controllers: [ReceiptsController],
   providers: [ReceiptsService, ExtractionService, PrismaService],
 })

@@ -33,7 +33,7 @@ export class AuthService {
       });
     }
 
-    return { access_token: this.signToken(user.id), user_id: user.id };
+    return { ...this.issueTokens(user.id), user_id: user.id };
   }
 
   async login(email: string, password: string) {
@@ -43,7 +43,35 @@ export class AuthService {
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Credenciais inválidas');
 
-    return { access_token: this.signToken(user.id), user_id: user.id };
+    return { ...this.issueTokens(user.id), user_id: user.id };
+  }
+
+  async refresh(refreshToken: string) {
+    try {
+      const payload = this.jwt.verify(refreshToken);
+      if (payload.type !== 'refresh') throw new Error();
+      return { access_token: this.signAccessToken(payload.sub) };
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido');
+    }
+  }
+
+  async forgotPassword(_email: string) {
+    return { message: 'Se o email existir, receberás instruções' };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    // For now, token is a userId
+    const user = await this.prisma.user.findUnique({ where: { id: token } });
+    if (!user) throw new UnauthorizedException('Token inválido');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: token },
+      data: { passwordHash },
+    });
+
+    return { message: 'Password atualizada com sucesso' };
   }
 
   async getProfile(userId: string) {
@@ -70,7 +98,14 @@ export class AuthService {
     };
   }
 
-  private signToken(userId: string): string {
-    return this.jwt.sign({ sub: userId });
+  private issueTokens(userId: string) {
+    return {
+      access_token: this.signAccessToken(userId),
+      refresh_token: this.jwt.sign({ sub: userId, type: 'refresh' }, { expiresIn: '30d' }),
+    };
+  }
+
+  private signAccessToken(userId: string): string {
+    return this.jwt.sign({ sub: userId, type: 'access' }, { expiresIn: '15m' });
   }
 }

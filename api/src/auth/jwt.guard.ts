@@ -19,6 +19,9 @@ export class JwtGuard implements CanActivate {
 
     try {
       const payload = this.jwt.verify(header.slice(7));
+      if (payload.type && payload.type !== 'access') {
+        throw new Error();
+      }
       req.userId = payload.sub;
       return true;
     } catch {

@@ -26,6 +26,7 @@ model User {
   usageCounters UsageCounter[]
   recurringExpenses RecurringExpense[]
   budgets      Budget[]
+  activityLogs ActivityLog[]
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
@@ -232,4 +233,15 @@ model Budget {
 
   @@unique([userId, category])
   @@map("budgets")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  details   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("activity_logs")
 }

@@ -25,6 +25,7 @@ const ALLOWED_MIME = new Set([
   'image/png',
   'image/webp',
   'image/heic',
+  'application/pdf',
 ]);
 
 @UseGuards(JwtGuard)
@@ -51,7 +52,7 @@ export class ReceiptsController {
   ) {
     if (!file) {
       throw new BadRequestException(
-        'Envia uma imagem (campo "image", jpeg/png/webp/heic, máx. 10MB).',
+        'Envia uma imagem ou PDF (campo "image", jpeg/png/webp/heic/pdf, máx. 10MB).',
       );
     }
     return this.receipts.create(file, req.userId);

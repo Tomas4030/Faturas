@@ -1,56 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { BarCodeScanner, BarCodeScannerResult } from 'expo-barcode-scanner';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, radius } from '../theme';
-import type { RootStackParamList } from '../navigation';
-
-const ATCUD_REGEX = /[A-Z0-9]{8}-\d{8}/;
 
 export function QrScanScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const navigation = useNavigation();
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanned, setScanned] = useState(false);
   const [atcud, setAtcud] = useState<string | null>(null);
 
-  useEffect(() => {
-    BarCodeScanner.requestPermissionsAsync().then(({ status }) =>
-      setHasPermission(status === 'granted'),
-    );
-  }, []);
+  if (!permission) return null;
 
-  const handleScan = ({ data }: BarCodeScannerResult) => {
-    if (atcud) return;
-    const match = data.match(ATCUD_REGEX);
-    if (match) setAtcud(match[0]);
-  };
-
-  if (hasPermission === null) {
+  if (!permission.granted) {
     return (
       <View style={styles.center}>
-        <Text style={styles.msg}>A pedir permissão da câmara…</Text>
-      </View>
-    );
-  }
-  if (!hasPermission) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.msg}>Sem acesso à câmara</Text>
-      </View>
-    );
-  }
-
-  if (atcud) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.label}>ATCUD detectado</Text>
-        <Text style={styles.code}>{atcud}</Text>
-        <Pressable
-          style={styles.btn}
-          onPress={() => navigation.navigate('Tabs', { atcud } as any)}
-        >
-          <Text style={styles.btnText}>Usar</Text>
+        <Text style={styles.text}>Precisamos de acesso à câmara</Text>
+        <Pressable style={styles.btn} onPress={requestPermission}>
+          <Text style={styles.btnText}>Permitir câmara</Text>
         </Pressable>
       </View>
     );
@@ -58,26 +25,43 @@ export function QrScanScreen() {
 
   return (
     <View style={styles.container}>
-      <BarCodeScanner
-        onBarCodeScanned={handleScan}
-        barCodeTypes={[BarCodeScanner.Constants.BarCodeType.qr]}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <View style={styles.overlay}>
-        <Text style={styles.hint}>Aponta ao QR code da fatura</Text>
-      </View>
+      {!scanned ? (
+        <CameraView
+          style={styles.camera}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          onBarcodeScanned={(result) => {
+            if (scanned) return;
+            setScanned(true);
+            const match = result.data.match(/[A-Z0-9]{4,}-\d{5,}/);
+            setAtcud(match ? match[0] : result.data);
+          }}
+        />
+      ) : (
+        <View style={styles.result}>
+          <Text style={styles.resultLabel}>ATCUD detectado</Text>
+          <Text style={styles.resultCode}>{atcud}</Text>
+          <Pressable style={styles.btn} onPress={() => navigation.goBack()}>
+            <Text style={styles.btnText}>Usar</Text>
+          </Pressable>
+          <Pressable style={styles.retry} onPress={() => setScanned(false)}>
+            <Text style={styles.retryText}>Scanear novamente</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  msg: { color: colors.textMuted, fontSize: 16 },
-  label: { color: colors.textMuted, fontSize: 13, letterSpacing: 1, marginBottom: 8 },
-  code: { color: colors.accent, fontSize: 22, fontWeight: '700', marginBottom: 24 },
-  btn: { backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: 32, paddingVertical: 14 },
-  btnText: { color: colors.onAccent, fontSize: 16, fontWeight: '700' },
-  overlay: { position: 'absolute', bottom: 80, left: 0, right: 0, alignItems: 'center' },
-  hint: { color: '#fff', fontSize: 15, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: radius.sm },
+  camera: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: colors.bg },
+  text: { color: colors.text, fontSize: 16, marginBottom: 16, textAlign: 'center' },
+  btn: { backgroundColor: colors.accent, borderRadius: radius.lg, paddingVertical: 14, paddingHorizontal: 32, alignItems: 'center' },
+  btnText: { color: colors.onAccent, fontWeight: '700', fontSize: 16 },
+  result: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  resultLabel: { color: colors.textMuted, fontSize: 14, marginBottom: 8 },
+  resultCode: { color: colors.accent, fontSize: 20, fontWeight: '800', marginBottom: 24 },
+  retry: { marginTop: 12 },
+  retryText: { color: colors.textMuted, fontSize: 15 },
 });

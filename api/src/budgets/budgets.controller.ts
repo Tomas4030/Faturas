@@ -51,12 +51,20 @@ export class BudgetsController {
       spentMap.set(cat, (spentMap.get(cat) ?? 0) + (r.totalCents ?? 0));
     }
 
-    return budgets.map((b) => ({
-      id: b.id,
-      category: b.category,
-      monthly_limit_cents: b.monthlyLimitCents,
-      spent_cents: spentMap.get(b.category) ?? 0,
-    }));
+    return budgets.map((b) => {
+      const spent = spentMap.get(b.category) ?? 0;
+      const limit = b.monthlyLimitCents;
+      const percentage = Math.round((spent / limit) * 100);
+      const alert = spent >= limit ? 'exceeded' : spent >= limit * 0.8 ? 'warning' : null;
+      return {
+        id: b.id,
+        category: b.category,
+        monthly_limit_cents: limit,
+        spent_cents: spent,
+        percentage,
+        alert,
+      };
+    });
   }
 
   @Post()
